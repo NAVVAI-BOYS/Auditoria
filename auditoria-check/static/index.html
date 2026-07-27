@@ -1,0 +1,2081 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Auditoria · The Back Office Exposure Check</title>
+<style>
+:root{
+  --bg:#05030d;
+  --bg2:#0d0722;
+  --panel:rgba(255,255,255,.035);
+  --panel2:rgba(255,255,255,.06);
+  --line:rgba(139,92,246,.22);
+  --line2:rgba(255,255,255,.10);
+  --violet:#8B5CF6;
+  --indigo:#6366F1;
+  --blue:#3B82F6;
+  --cyan:#22D3EE;
+  --ink:#F6F4FF;
+  --muted:#A9A3C9;
+  --muted2:#7F7AA0;
+  --good:#34D399;
+  --warn:#FBBF24;
+  --bad:#FB7185;
+  --r:16px;
+  --maxw:1120px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg);
+  color:var(--ink);
+  font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:16px;line-height:1.62;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+body::before{
+  content:"";position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:
+    radial-gradient(900px 620px at 78% 8%, rgba(99,102,241,.30), transparent 62%),
+    radial-gradient(760px 560px at 12% 82%, rgba(139,92,246,.22), transparent 64%),
+    radial-gradient(1100px 700px at 50% 120%, rgba(34,211,238,.10), transparent 60%),
+    linear-gradient(180deg,#05030d 0%, #0b0620 55%, #05030d 100%);
+}
+#bgCanvas{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.55}
+.wrap{position:relative;z-index:2;max-width:var(--maxw);margin:0 auto;padding:0 22px}
+h1,h2,h3,h4{margin:0;font-weight:750;letter-spacing:-.025em;line-height:1.12}
+p{margin:0 0 14px}
+a{color:var(--cyan)}
+.grad{background:linear-gradient(96deg,var(--cyan),var(--violet) 62%,var(--indigo));-webkit-background-clip:text;background-clip:text;color:transparent}
+.eyebrow{
+  font-size:11px;letter-spacing:.20em;text-transform:uppercase;color:var(--muted2);
+  font-weight:650;margin:0 0 10px
+}
+.tnum{font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}
+.small{font-size:13.5px;line-height:1.55}
+.tiny{font-size:12.5px;line-height:1.5;color:var(--muted2)}
+.hide{display:none !important}
+
+/* ---------- ribbon ---------- */
+#ribbon{
+  position:fixed;top:0;left:0;right:0;z-index:60;
+  background:linear-gradient(90deg,rgba(139,92,246,.95),rgba(59,130,246,.95));
+  color:#fff;font-size:12px;letter-spacing:.12em;text-transform:uppercase;font-weight:700;
+  text-align:center;padding:6px 12px
+}
+.padtop{padding-top:34px}
+
+/* ---------- nav ---------- */
+.nav{
+  position:relative;z-index:5;display:flex;align-items:center;justify-content:space-between;
+  gap:16px;padding:18px 0 8px;flex-wrap:wrap
+}
+.brandmark{display:flex;align-items:center;gap:12px}
+.brandmark .wordmark{font-size:19px;font-weight:700;letter-spacing:.14em;text-transform:uppercase}
+.navnote{font-size:12.5px;color:var(--muted2);letter-spacing:.04em}
+
+/* ---------- buttons ---------- */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:10px;
+  padding:14px 26px;border-radius:999px;border:0;cursor:pointer;
+  font-size:15px;font-weight:650;font-family:inherit;
+  background:linear-gradient(96deg,var(--violet),var(--blue));color:#fff;
+  box-shadow:0 10px 34px rgba(99,102,241,.38);
+  transition:transform .16s ease, box-shadow .16s ease, filter .16s ease
+}
+.btn:hover{transform:translateY(-2px);box-shadow:0 16px 42px rgba(99,102,241,.5)}
+.btn.ghost{background:transparent;border:1.5px solid rgba(255,255,255,.34);box-shadow:none;color:var(--ink)}
+.btn.ghost:hover{border-color:var(--cyan);box-shadow:0 8px 26px rgba(34,211,238,.16)}
+.btn.small{padding:10px 18px;font-size:13.5px}
+.btn:focus-visible,[role="button"]:focus-visible,input:focus-visible,textarea:focus-visible{
+  outline:2.5px solid var(--cyan);outline-offset:3px
+}
+
+/* ---------- home hero ---------- */
+.hero{
+  display:grid;grid-template-columns:1.02fr .98fr;gap:34px;align-items:center;
+  padding:26px 0 20px;min-height:min(76vh,700px)
+}
+.hero h1{font-size:clamp(38px,5.1vw,68px);letter-spacing:-.035em;margin:0 0 18px}
+.hero .sub{font-size:clamp(16px,1.5vw,19px);color:#CFCAE8;max-width:36ch;margin-bottom:26px}
+.pillrow{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:22px}
+.pill{
+  font-size:12px;letter-spacing:.06em;padding:6px 13px;border-radius:999px;
+  border:1px solid var(--line);background:rgba(139,92,246,.10);color:#D6D1F2
+}
+
+/* ---------- constellation ---------- */
+.orbitwrap{position:relative;width:100%;max-width:560px;margin:0 auto;aspect-ratio:1/1}
+.orbit{width:100%;height:100%;overflow:visible;transition:transform .5s cubic-bezier(.2,.8,.2,1)}
+.node{cursor:pointer}
+.node .ncore{transition:r .3s ease, opacity .3s ease}
+.node .nring{transform-origin:center;transform-box:fill-box;animation:breathe 4.6s ease-in-out infinite}
+.node:nth-child(2) .nring{animation-delay:.5s}
+.node:nth-child(3) .nring{animation-delay:1.1s}
+.node:nth-child(4) .nring{animation-delay:1.7s}
+.node:nth-child(5) .nring{animation-delay:2.3s}
+@keyframes breathe{0%,100%{opacity:.45;transform:scale(1)}50%{opacity:1;transform:scale(1.09)}}
+.node text{fill:#EDEAFB;font-size:15px;font-weight:640;letter-spacing:.005em;pointer-events:none}
+.node.dim{opacity:.30}
+.node.on .ncore{r:11}
+.spoke{stroke:rgba(255,255,255,.20);stroke-width:1.1}
+.bigring{fill:none;stroke:url(#ringGrad);stroke-width:2.2;opacity:.95}
+.dashring{fill:none;stroke:rgba(34,211,238,.55);stroke-width:1.4;stroke-dasharray:3 16;transform-origin:310px 310px;animation:spin 26s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.corebar{transform-origin:center bottom;transform-box:fill-box;animation:pulseBar 2.6s ease-in-out infinite}
+@keyframes pulseBar{0%,100%{transform:scaleY(.62)}50%{transform:scaleY(1)}}
+.nodecap{
+  min-height:64px;margin-top:14px;text-align:center;color:var(--muted);font-size:14px;
+  padding:0 10px;transition:opacity .25s ease
+}
+.nodecap b{color:#E7E3FB;font-weight:650}
+
+/* ---------- cards / lanes ---------- */
+.card{
+  background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
+  padding:22px;backdrop-filter:blur(6px)
+}
+.lanegrid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:6px 0 26px}
+.lane{
+  position:relative;overflow:hidden;text-align:left;cursor:pointer;
+  background:linear-gradient(150deg,rgba(139,92,246,.14),rgba(59,130,246,.06));
+  border:1px solid var(--line);border-radius:20px;padding:26px 24px;
+  transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease
+}
+.lane:hover{transform:translateY(-3px);border-color:rgba(34,211,238,.55);box-shadow:0 18px 46px rgba(59,130,246,.22)}
+.lane h3{font-size:23px;margin-bottom:6px}
+.lane .laneb{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--cyan);font-weight:700;margin-bottom:12px}
+.lane ul{margin:12px 0 16px;padding-left:18px;color:var(--muted);font-size:14px}
+.lane li{margin-bottom:4px}
+.lane .go{display:inline-flex;align-items:center;gap:8px;font-weight:650;color:#fff;font-size:14.5px}
+.lane .arc{position:absolute;right:-40px;top:-40px;width:170px;height:170px;border-radius:50%;
+  background:radial-gradient(circle,rgba(34,211,238,.20),transparent 68%);pointer-events:none}
+
+.explain{
+  border-left:3px solid var(--cyan);background:rgba(34,211,238,.06);
+  border-radius:0 14px 14px 0;padding:16px 18px;margin:16px 0
+}
+.explain h4{font-size:15px;margin-bottom:6px}
+.explain p{margin:0;font-size:14px;color:#CFCAE8}
+
+.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:24px 0 40px}
+.step{border:1px solid var(--line2);border-radius:14px;padding:16px;background:rgba(255,255,255,.02)}
+.step .n{font-size:11px;letter-spacing:.18em;color:var(--cyan);font-weight:700;margin-bottom:8px}
+.step h4{font-size:15px;margin-bottom:5px}
+.step p{margin:0;font-size:13px;color:var(--muted)}
+
+.logostrip{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:6px 0 30px}
+.logostrip span{font-size:12px;color:var(--muted2);border:1px solid var(--line2);border-radius:999px;padding:5px 12px}
+
+/* ---------- quiz ---------- */
+.qshell{max-width:760px;margin:0 auto;padding:26px 0 70px}
+.progressbar{height:4px;background:rgba(255,255,255,.08);border-radius:99px;overflow:hidden;margin-bottom:8px}
+.progressbar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--cyan),var(--violet));transition:width .35s ease}
+.qmeta{display:flex;justify-content:space-between;font-size:12.5px;color:var(--muted2);margin-bottom:26px}
+.qkicker{font-size:11.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--cyan);font-weight:700;margin-bottom:10px}
+.qtitle{font-size:clamp(23px,3vw,31px);margin-bottom:10px}
+.qhelp{color:var(--muted);font-size:14.5px;margin-bottom:20px}
+.opts{display:flex;flex-direction:column;gap:10px}
+.opt{
+  text-align:left;cursor:pointer;padding:15px 18px;border-radius:13px;
+  border:1px solid var(--line2);background:rgba(255,255,255,.03);color:var(--ink);
+  font-size:15.5px;font-family:inherit;line-height:1.45;
+  transition:border-color .15s ease,background .15s ease,transform .12s ease
+}
+.opt:hover{border-color:var(--cyan);background:rgba(34,211,238,.08);transform:translateX(3px)}
+.opt.sel{border-color:var(--violet);background:rgba(139,92,246,.16)}
+.ownbox{margin-top:18px;border-top:1px dashed var(--line2);padding-top:16px}
+.ownbox label{display:block;font-size:13.5px;color:var(--muted);margin-bottom:8px}
+textarea,input[type=text],input[type=email]{
+  width:100%;background:rgba(255,255,255,.04);border:1px solid var(--line2);border-radius:11px;
+  color:var(--ink);padding:12px 14px;font-family:inherit;font-size:15px;resize:vertical
+}
+.ownrule{font-size:12px;color:var(--muted2);margin-top:8px}
+.qnav{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:26px;flex-wrap:wrap}
+.linkbtn{
+  background:none;border:0;color:var(--muted);font-family:inherit;font-size:14px;cursor:pointer;
+  padding:8px 2px;text-decoration:underline;text-underline-offset:4px
+}
+.linkbtn:hover{color:var(--cyan)}
+.micbtn{
+  margin-top:8px;background:rgba(255,255,255,.04);border:1px solid var(--line2);border-radius:999px;
+  color:var(--muted);font-family:inherit;font-size:12.5px;padding:6px 14px;cursor:pointer
+}
+.micbtn.rec{border-color:var(--bad);color:var(--bad)}
+.curswitch{display:inline-flex;gap:4px;border:1px solid var(--line2);border-radius:999px;padding:3px;margin-left:8px}
+.curswitch button{
+  background:none;border:0;color:var(--muted2);font-family:inherit;font-size:12.5px;
+  padding:4px 11px;border-radius:999px;cursor:pointer
+}
+.curswitch button.on{background:rgba(139,92,246,.28);color:#fff}
+
+/* ---------- gate ---------- */
+.gategrid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:18px 0}
+.field label{display:block;font-size:12.5px;color:var(--muted);margin-bottom:6px;letter-spacing:.04em}
+.teaser{border:1px solid var(--line);border-radius:14px;padding:18px;background:rgba(139,92,246,.08);margin:18px 0}
+.teaser .blur{filter:blur(5px);opacity:.6;user-select:none}
+.err{color:var(--bad);font-size:13.5px;margin-top:10px}
+
+/* ---------- report ---------- */
+.partnav{
+  position:sticky;top:34px;z-index:30;display:flex;gap:6px;overflow-x:auto;
+  padding:10px 0;margin-bottom:8px;background:linear-gradient(180deg,rgba(5,3,13,.94),rgba(5,3,13,.6));
+  backdrop-filter:blur(10px);border-bottom:1px solid var(--line2)
+}
+.partnav button{
+  white-space:nowrap;background:rgba(255,255,255,.04);border:1px solid var(--line2);
+  color:var(--muted);border-radius:999px;padding:7px 14px;font-family:inherit;font-size:12.5px;cursor:pointer
+}
+.partnav button.on{background:rgba(139,92,246,.24);color:#fff;border-color:var(--violet)}
+.rhead{padding:28px 0 10px;border-bottom:1px solid var(--line2);margin-bottom:26px}
+.rhead h1{font-size:clamp(30px,4.4vw,50px);margin-bottom:12px}
+.rhead .verdictline{font-size:17px;color:#CFCAE8}
+.part{padding:44px 0 10px;scroll-margin-top:96px}
+.partlabel{
+  display:inline-block;font-size:11.5px;letter-spacing:.2em;text-transform:uppercase;
+  color:#05030d;background:linear-gradient(96deg,var(--cyan),var(--violet));
+  padding:4px 12px;border-radius:999px;font-weight:750;margin-bottom:14px
+}
+.part h2{font-size:clamp(26px,3.4vw,38px);margin-bottom:12px}
+.part>.lede{color:var(--muted);font-size:15.5px;max-width:78ch;margin-bottom:24px}
+.sechead{font-size:11.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--cyan);font-weight:700;margin:34px 0 14px}
+.unitline{font-size:13px;color:var(--muted2);margin:-8px 0 16px}
+
+.banner{
+  border-radius:20px;padding:26px;margin-bottom:18px;
+  background:linear-gradient(150deg,rgba(139,92,246,.20),rgba(34,211,238,.06));
+  border:1px solid var(--line)
+}
+.banner .vword{font-size:clamp(38px,6vw,60px);letter-spacing:-.04em;line-height:1;margin-bottom:10px}
+.banner .vmean{font-size:16px;color:#DAD5F5;max-width:64ch;margin-bottom:6px}
+.banner .vset{font-size:13.5px;color:var(--muted2)}
+.scalestrip{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:20px}
+.band{border:1px solid var(--line2);border-radius:12px;padding:12px;background:rgba(255,255,255,.02)}
+.band.you{border-color:var(--cyan);background:rgba(34,211,238,.12)}
+.band .bn{font-weight:700;font-size:15px}
+.band .br{font-size:12.5px;color:var(--muted2);margin:2px 0 6px}
+.band .bm{font-size:13px;color:var(--muted);line-height:1.45}
+.band .youmark{display:inline-block;margin-top:8px;font-size:11.5px;letter-spacing:.14em;font-weight:750;color:var(--cyan)}
+
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(178px,1fr));gap:12px;margin:14px 0 8px}
+.tile{border:1px solid var(--line2);border-radius:14px;padding:15px;background:rgba(255,255,255,.025)}
+.tile .tl{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted2);margin-bottom:7px}
+.tile .tv{font-size:25px;font-weight:750;letter-spacing:-.02em;line-height:1.1;margin-bottom:6px}
+.tile .th{font-size:12.5px;color:var(--muted);line-height:1.45}
+
+.fifteen{border:1px solid var(--line);border-radius:16px;padding:20px;background:rgba(99,102,241,.08);margin:18px 0}
+.fifteen ul{margin:10px 0 0;padding-left:0;list-style:none}
+.fifteen li{display:flex;gap:11px;margin-bottom:11px;font-size:15px;line-height:1.5}
+.fifteen li span.a{color:var(--cyan);font-weight:750}
+
+.ladder{display:flex;flex-direction:column;gap:10px;margin-top:12px}
+.rung{border:1px solid var(--line2);border-radius:14px;padding:16px;background:rgba(255,255,255,.02)}
+.rung.you{border-color:var(--cyan);background:rgba(34,211,238,.10)}
+.rung .rt{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline}
+.rung .rn{font-size:17px;font-weight:700}
+.rung .rr{font-size:12.5px;color:var(--muted2)}
+.rung p{margin:8px 0 0;font-size:14px;color:var(--muted)}
+
+.pillar{border:1px solid var(--line2);border-radius:16px;padding:20px;margin-bottom:14px;background:rgba(255,255,255,.025)}
+.pillar .ph{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+.pillar .pn{font-size:19px;font-weight:700}
+.pillar .psc{font-size:19px;font-weight:750}
+.weakflag{font-size:10.5px;letter-spacing:.16em;background:rgba(251,113,133,.18);color:var(--bad);
+  border:1px solid rgba(251,113,133,.4);padding:3px 9px;border-radius:999px;font-weight:750;margin-left:8px}
+.pdef{font-size:14px;color:var(--muted);margin:8px 0 14px}
+.bar{position:relative;height:34px;border-radius:9px;background:rgba(255,255,255,.06);overflow:hidden;margin-bottom:8px}
+.bar .typical{position:absolute;top:0;bottom:0;left:40%;width:30%;background:rgba(255,255,255,.07);
+  border-left:1px dashed rgba(255,255,255,.22);border-right:1px dashed rgba(255,255,255,.22)}
+.bar .fill{position:absolute;top:0;bottom:0;left:0;width:0;background:linear-gradient(90deg,var(--indigo),var(--cyan));
+  transition:width 1.1s cubic-bezier(.2,.8,.2,1)}
+.bar .youtag{position:absolute;top:50%;transform:translate(-50%,-50%);font-size:11.5px;font-weight:750;
+  color:#05030d;background:#fff;border-radius:99px;padding:2px 9px;white-space:nowrap;transition:left 1.1s cubic-bezier(.2,.8,.2,1)}
+.anchors{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0 14px}
+.anchor{font-size:12.8px;color:var(--muted);border:1px solid var(--line2);border-radius:10px;padding:10px}
+.anchor b{color:#DBD6F6}
+.rowline{display:flex;justify-content:space-between;gap:12px;padding:11px 0;border-top:1px solid var(--line2);align-items:baseline}
+.rowline .rq{font-size:13.8px;color:#DBD6F6;flex:1}
+.rowline .ra{display:block;font-size:13px;color:var(--muted2);margin-top:3px}
+.rowline .rs{font-size:16px;font-weight:700;min-width:52px;text-align:right}
+.howrow{font-size:12.5px;color:var(--muted2);margin-top:12px;line-height:1.5}
+
+.pkblock{border:1px solid var(--line);border-radius:16px;padding:20px;background:rgba(139,92,246,.08);margin:22px 0}
+.pkblock h4{font-size:17px;margin-bottom:10px}
+.pkblock ul{margin:0 0 12px;padding-left:20px;color:var(--muted);font-size:14.5px}
+.pkblock .rule{font-size:14px;color:#DBD6F6;border-top:1px solid var(--line2);padding-top:12px}
+
+.firstmove{border:1px solid var(--cyan);border-radius:16px;padding:22px;background:rgba(34,211,238,.09);margin-top:22px}
+.firstmove .fl{font-size:11.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--cyan);font-weight:750;margin-bottom:8px}
+.firstmove h3{font-size:22px;margin-bottom:10px}
+
+.working{border:1px solid var(--line2);border-radius:16px;padding:20px;background:rgba(255,255,255,.025);margin:14px 0}
+.working ul{margin:0;padding-left:0;list-style:none}
+.working li{padding:9px 0;border-bottom:1px dashed var(--line2);font-size:14.5px;line-height:1.55}
+.working li:last-child{border-bottom:0}
+.working .eq{font-weight:700;color:#fff}
+.warnbox{border:1px solid rgba(251,191,36,.5);background:rgba(251,191,36,.09);border-radius:14px;padding:16px;margin:14px 0;font-size:14px;color:#F3E3C0}
+
+.check{border:1px solid var(--line2);border-radius:14px;padding:17px;background:rgba(255,255,255,.025)}
+.checkgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.check .ck{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--cyan);font-weight:750;margin-bottom:8px}
+.check h3{font-size:16.5px;margin-bottom:8px;line-height:1.3}
+.check p{font-size:13.5px;color:var(--muted);margin:0 0 12px}
+.riskpill{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:750;letter-spacing:.1em;
+  text-transform:uppercase;padding:5px 11px;border-radius:999px}
+.riskpill.high{background:rgba(251,113,133,.16);color:var(--bad);border:1px solid rgba(251,113,133,.42)}
+.riskpill.med{background:rgba(251,191,36,.14);color:var(--warn);border:1px solid rgba(251,191,36,.4)}
+.riskpill.low{background:rgba(52,211,153,.13);color:var(--good);border:1px solid rgba(52,211,153,.38)}
+.riskpill .rsc{color:var(--muted2);font-weight:600;letter-spacing:0;text-transform:none}
+.printrule{font-size:13px;color:var(--muted2);border-top:1px solid var(--line2);margin-top:14px;padding-top:12px}
+
+.blind{border:1px solid rgba(251,113,133,.42);border-radius:16px;padding:22px;background:rgba(251,113,133,.07)}
+.blind ol{margin:12px 0 0;padding-left:20px;font-size:14.8px;line-height:1.6}
+.blind li{margin-bottom:10px}
+.blind li b{color:#fff}
+
+.modgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin:12px 0 8px}
+.mod{border:1px solid var(--line2);border-radius:13px;padding:15px;background:rgba(255,255,255,.025)}
+.mod .mn{font-weight:750;font-size:14.5px;margin-bottom:6px;color:#E9E5FC}
+.mod p{margin:0;font-size:13px;color:var(--muted)}
+
+.gapcard{
+  display:grid;grid-template-columns:1fr 44px 1fr;gap:12px;align-items:stretch;
+  border:1px solid var(--line2);border-radius:16px;padding:18px;margin-bottom:14px;background:rgba(255,255,255,.025)
+}
+.gapcard .side{display:flex;flex-direction:column}
+.gapcard .sl{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted2);font-weight:750;margin-bottom:10px}
+.gapcard .quote{font-size:17px;font-weight:650;color:#fff;line-height:1.35;margin-bottom:10px}
+.gapcard .meta{font-size:12.8px;color:var(--muted2);margin-bottom:6px}
+.gapcard .why{font-size:14px;color:var(--muted);margin-top:8px}
+.gapcard .arrow{display:flex;align-items:center;justify-content:center;color:var(--cyan);font-size:22px}
+.modpill{display:inline-block;font-size:12.5px;font-weight:750;color:#05030d;
+  background:linear-gradient(96deg,var(--cyan),var(--violet));padding:4px 12px;border-radius:999px;margin-bottom:10px}
+.gapcard .good{font-size:13.5px;color:#CFCAE8;border-top:1px solid var(--line2);padding-top:10px;margin-top:auto}
+
+.rank{border:1px solid var(--line2);border-radius:15px;padding:18px;margin-bottom:12px;background:rgba(255,255,255,.025)}
+.rank .rh{display:flex;justify-content:space-between;gap:12px;align-items:baseline;flex-wrap:wrap}
+.rank .rname{font-size:18px;font-weight:700}
+.rank .rscore{font-size:20px;font-weight:750}
+.rank .rband{font-size:12.5px;color:var(--muted2);margin:4px 0 10px}
+.rank .maths{font-size:13px;color:var(--muted);background:rgba(255,255,255,.03);border-radius:10px;padding:11px 13px;margin-bottom:10px}
+.rank .maths .w{color:#fff;font-weight:700}
+.rank p.why{margin:0;font-size:14px;color:#CFCAE8}
+.dest{font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;font-weight:750;color:var(--cyan)}
+
+.goalcard{border:1px solid var(--cyan);border-radius:16px;padding:22px;background:rgba(34,211,238,.08);margin-bottom:22px}
+.goalcard .g{font-size:clamp(20px,3vw,28px);font-weight:700;line-height:1.25;margin:8px 0 10px}
+.states{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:8px}
+.state{border:1px solid var(--line2);border-radius:16px;padding:18px;background:rgba(255,255,255,.025)}
+.state .sh{font-size:11.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:750;margin-bottom:12px}
+.state.today .sh{color:var(--bad)}
+.state.future .sh{color:var(--good)}
+.state .item{border-top:1px solid var(--line2);padding:10px 0}
+.state .item .k{font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted2);margin-bottom:3px}
+.state .item .v{font-size:14.5px;color:#E9E5FC}
+.state .onesent{font-size:13.8px;color:var(--muted);margin-top:12px;border-top:1px solid var(--line2);padding-top:12px}
+
+.phase{border:1px solid var(--line2);border-radius:16px;padding:18px;margin-bottom:12px;background:rgba(255,255,255,.025)}
+.phase .pt{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline;margin-bottom:8px}
+.phase .pname{font-size:11.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:750;color:var(--cyan)}
+.phase .pweeks{font-size:12.5px;color:var(--muted2)}
+.phase h3{font-size:19px;margin-bottom:8px}
+.phase .owner{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted2);margin-bottom:10px}
+.phase .rec{font-size:14px;color:#CFCAE8;border-top:1px solid var(--line2);padding-top:10px;margin-top:10px}
+
+.chartbox{border:1px solid var(--line2);border-radius:16px;padding:20px;background:rgba(255,255,255,.025);margin:14px 0}
+.chartbox h4{font-size:17px;margin-bottom:8px}
+.chartbox .how{font-size:13.5px;color:var(--muted);margin-bottom:14px}
+.chartbox .driver{font-size:13px;color:var(--muted2);border-top:1px solid var(--line2);padding-top:12px;margin-top:12px}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);margin-bottom:6px}
+.legend i{display:inline-block;width:22px;height:3px;border-radius:2px;margin-right:7px;vertical-align:middle}
+.moneystrip{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-top:14px}
+.moneystrip .m{border:1px solid var(--line2);border-radius:12px;padding:13px;background:rgba(255,255,255,.02)}
+.moneystrip .m .ml{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted2);margin-bottom:6px}
+.moneystrip .m .mv{font-size:21px;font-weight:750;letter-spacing:-.02em}
+.moneystrip .m .mh{font-size:12px;color:var(--muted);margin-top:4px}
+
+.receipt{border-top:1px solid var(--line2);padding:13px 0}
+.receipt .rq2{font-size:17px;font-weight:650;color:#fff;line-height:1.35}
+.tag{font-size:10px;letter-spacing:.14em;font-weight:750;padding:2px 8px;border-radius:999px;margin-left:9px;vertical-align:middle}
+.tag.tapped{background:rgba(99,102,241,.22);color:#BFC0FF;border:1px solid rgba(99,102,241,.4)}
+.tag.typed{background:rgba(34,211,238,.16);color:#9FE9F7;border:1px solid rgba(34,211,238,.4)}
+.receipt .ia{font-size:13px;color:var(--muted2);margin-top:5px}
+.receipt .went{font-size:13.5px;color:var(--muted);margin-top:5px}
+
+.glossary{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.gl{border:1px solid var(--line2);border-radius:12px;padding:14px;background:rgba(255,255,255,.02)}
+.gl .gt{font-weight:700;font-size:14.5px;margin-bottom:5px;color:#E9E5FC}
+.gl p{margin:0;font-size:13.2px;color:var(--muted)}
+
+.closing{border:1px solid var(--line);border-radius:20px;padding:28px;background:linear-gradient(150deg,rgba(139,92,246,.16),rgba(34,211,238,.05));margin-top:40px}
+.closing .costline{font-size:clamp(19px,2.6vw,26px);font-weight:700;line-height:1.3;margin-bottom:12px}
+.ctarow{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px}
+.footnote{font-size:12.5px;color:var(--muted2);line-height:1.6;margin-top:22px;border-top:1px solid var(--line2);padding-top:16px}
+.walkbox{border:1px solid var(--line2);border-radius:16px;padding:18px;background:rgba(255,255,255,.025);margin:20px 0}
+.walk{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px}
+.walkitem{border:1px solid var(--line2);border-radius:11px;padding:12px;cursor:pointer;background:rgba(255,255,255,.02);text-align:left;color:var(--ink);font-family:inherit}
+.walkitem:hover{border-color:var(--cyan)}
+.walkitem .wn{font-size:10.5px;letter-spacing:.16em;color:var(--cyan);font-weight:750;margin-bottom:5px}
+.walkitem .wt{font-size:14.5px;font-weight:650;margin-bottom:3px}
+.walkitem .wd{font-size:12.3px;color:var(--muted2);line-height:1.4}
+
+.reveal{opacity:0;transform:translateY(16px);transition:opacity .6s ease,transform .6s ease}
+.reveal.in{opacity:1;transform:none}
+
+@media (max-width:900px){
+  .hero{grid-template-columns:1fr;padding-top:8px}
+  .orbitwrap{max-width:420px}
+  .lanegrid,.gategrid,.states,.checkgrid,.glossary,.anchors{grid-template-columns:1fr}
+  .steps,.walk{grid-template-columns:1fr 1fr}
+  .gapcard{grid-template-columns:1fr}
+  .gapcard .arrow{transform:rotate(90deg);height:30px}
+  .scalestrip{grid-template-columns:1fr}
+}
+@media (max-width:560px){
+  .steps,.walk{grid-template-columns:1fr}
+  .node text{font-size:17px}
+}
+@media (prefers-reduced-motion:reduce){
+  *{animation:none !important;transition:none !important}
+  .reveal{opacity:1;transform:none}
+}
+</style>
+</head>
+<body>
+<div id="ribbon">Preview · The Back Office Exposure Check · built for Auditoria.AI by Navvai</div>
+<canvas id="bgCanvas"></canvas>
+
+<!-- ============ HOME ============ -->
+<section id="home" class="wrap padtop">
+  <div class="nav">
+    <div class="brandmark">
+      <svg width="34" height="34" viewBox="0 0 40 40" aria-hidden="true">
+        <defs><linearGradient id="lg1" x1="0" y1="1" x2="1" y2="0">
+          <stop offset="0" stop-color="#22D3EE"/><stop offset="1" stop-color="#8B5CF6"/></linearGradient></defs>
+        <g fill="url(#lg1)">
+          <rect x="4"  y="18" width="3.4" height="9"  rx="1.7"/>
+          <rect x="10" y="12" width="3.4" height="16" rx="1.7"/>
+          <rect x="16" y="7"  width="3.4" height="26" rx="1.7"/>
+          <rect x="22" y="12" width="3.4" height="16" rx="1.7"/>
+          <rect x="28" y="18" width="3.4" height="9"  rx="1.7"/>
+          <circle cx="5.7" cy="14.5" r="2.1"/><circle cx="11.7" cy="8.5" r="2.1"/>
+          <circle cx="17.7" cy="3.6" r="2.1"/><circle cx="23.7" cy="8.5" r="2.1"/>
+          <circle cx="29.7" cy="14.5" r="2.1"/>
+        </g>
+      </svg>
+      <span class="wordmark">Auditoria</span>
+    </div>
+    <div class="navnote">The Back Office Exposure Check · free · no prices, no pitch</div>
+  </div>
+
+  <div class="hero">
+    <div>
+      <div class="pillrow">
+        <span class="pill">4 minutes</span>
+        <span class="pill">16 questions</span>
+        <span class="pill">Your figures only</span>
+        <span class="pill">Report in your inbox</span>
+      </div>
+      <h1>Find out what your AP and AR are <span class="grad">letting through.</span></h1>
+      <p class="sub">Not another savings calculator. This one reads the control gaps, the manual load and the blind spot in your finance back office, then prices what they cost you every month using nothing but your own numbers.</p>
+      <div style="display:flex;gap:12px;flex-wrap:wrap">
+        <button class="btn" id="startBtn">Start the check →</button>
+        <button class="btn ghost" id="howBtn">How it works</button>
+      </div>
+      <p class="tiny" style="margin-top:18px">No prices for Auditoria work appear anywhere in the report. Every score comes from an answer you tap. Every figure comes from a number you give.</p>
+    </div>
+
+    <div>
+      <div class="orbitwrap">
+        <svg class="orbit" id="orbit" viewBox="0 0 620 620" role="img" aria-label="Auditoria platform: five agent capabilities connected around a central engine">
+          <defs>
+            <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#22D3EE"/><stop offset=".55" stop-color="#8B5CF6"/><stop offset="1" stop-color="#3B82F6"/>
+            </linearGradient>
+            <radialGradient id="coreGlow"><stop offset="0" stop-color="#8B5CF6" stop-opacity=".55"/><stop offset="1" stop-color="#8B5CF6" stop-opacity="0"/></radialGradient>
+            <linearGradient id="barGrad" x1="0" y1="1" x2="1" y2="0">
+              <stop offset="0" stop-color="#22D3EE"/><stop offset="1" stop-color="#8B5CF6"/>
+            </linearGradient>
+          </defs>
+          <circle cx="310" cy="310" r="150" fill="url(#coreGlow)"/>
+          <g id="spokes"></g>
+          <circle class="bigring" cx="310" cy="310" r="118"/>
+          <circle class="dashring" cx="310" cy="310" r="140"/>
+          <g id="pulses"></g>
+          <g id="coreMark" transform="translate(310,310)">
+            <g fill="url(#barGrad)">
+              <rect class="corebar" x="-46" y="-14" width="9" height="30" rx="4.5" style="animation-delay:0s"/>
+              <rect class="corebar" x="-31" y="-27" width="9" height="43" rx="4.5" style="animation-delay:.22s"/>
+              <rect class="corebar" x="-16" y="-38" width="9" height="54" rx="4.5" style="animation-delay:.44s"/>
+              <rect class="corebar" x="-1"  y="-46" width="9" height="62" rx="4.5" style="animation-delay:.66s"/>
+              <rect class="corebar" x="14"  y="-38" width="9" height="54" rx="4.5" style="animation-delay:.88s"/>
+              <rect class="corebar" x="29"  y="-27" width="9" height="43" rx="4.5" style="animation-delay:1.1s"/>
+              <rect class="corebar" x="44"  y="-14" width="9" height="30" rx="4.5" style="animation-delay:1.32s"/>
+              <circle cx="-41.5" cy="-22" r="5"/><circle cx="-26.5" cy="-35" r="5"/>
+              <circle cx="-11.5" cy="-46" r="5"/><circle cx="3.5" cy="-54" r="5"/>
+              <circle cx="18.5" cy="-46" r="5"/><circle cx="33.5" cy="-35" r="5"/>
+              <circle cx="48.5" cy="-22" r="5"/>
+            </g>
+          </g>
+          <g id="nodes"></g>
+        </svg>
+      </div>
+      <div class="nodecap" id="nodecap"><b>Tap a capability</b> to see what it does. This check tells you which of them your answers point at.</div>
+    </div>
+  </div>
+
+  <div id="howSection">
+    <div class="explain">
+      <h4>What a check is, in one line</h4>
+      <p>Auditoria's demo shows you the platform. This check looks the other way round: it scores what you already have, prices what the gaps cost you every month in your own figures, and names the Auditoria module that closes each one. It is not a demo and it does not replace one.</p>
+    </div>
+
+    <div class="eyebrow" style="margin-top:34px">Pick your side of the ledger</div>
+    <h2 style="font-size:clamp(24px,3vw,34px);margin-bottom:8px">Two lanes, because AP and AR fail in different places</h2>
+    <p class="muted small" style="max-width:70ch;margin-bottom:18px">The questions, the scoring and the report are different in each. Pick the one you own. If you own both, run it twice.</p>
+
+    <div class="lanegrid">
+      <button class="lane" data-lane="payables">
+        <div class="arc"></div>
+        <div class="laneb">Lane 1 · Payables</div>
+        <h3>Money going out</h3>
+        <p class="muted small" style="margin:0">For the person who owns AP, shared services or the invoice to pay process.</p>
+        <ul>
+          <li>Invoice arrival, coding and approval</li>
+          <li>Bank detail changes and duplicate payments</li>
+          <li>Supplier email load and month end close</li>
+        </ul>
+        <span class="go">Start the payables check →</span>
+      </button>
+      <button class="lane" data-lane="receivables">
+        <div class="arc"></div>
+        <div class="laneb">Lane 2 · Receivables</div>
+        <h3>Money coming in</h3>
+        <p class="muted small" style="margin:0">For the person who owns AR, credit and collections or the order to cash process.</p>
+        <ul>
+          <li>Who gets chased, and in what order</li>
+          <li>Remittance matching and cash application</li>
+          <li>Billing queries, disputes and promises to pay</li>
+        </ul>
+        <span class="go">Start the receivables check →</span>
+      </button>
+    </div>
+
+    <div class="eyebrow">What you get back</div>
+    <div class="steps">
+      <div class="step"><div class="n">01</div><h4>A verdict</h4><p>One word, set by your weakest area, with the scale printed so you can see where it sits.</p></div>
+      <div class="step"><div class="n">02</div><h4>A number</h4><p>What the manual handling costs you a month, with the arithmetic printed line by line.</p></div>
+      <div class="step"><div class="n">03</div><h4>A blind spot</h4><p>The one risk your answers point at that you did not raise yourself.</p></div>
+      <div class="step"><div class="n">04</div><h4>A 90 day plan</h4><p>Three phases, each with the Auditoria module accountable for it. No prices anywhere.</p></div>
+    </div>
+
+    <div class="eyebrow">Built on the platform behind</div>
+    <div class="logostrip">
+      <span>Workday</span><span>SAP</span><span>Oracle</span><span>NetSuite</span><span>Coupa</span><span>ServiceNow</span>
+      <span>SOC 2 Type II</span>
+    </div>
+    <p class="tiny" style="margin-bottom:60px">Auditoria.AI · 2755 Great America Way, Suite 155, Santa Clara CA 95054. Built for Auditoria.AI by Navvai.</p>
+  </div>
+</section>
+
+<!-- ============ QUIZ ============ -->
+<section id="quiz" class="wrap padtop hide">
+  <div class="qshell">
+    <div class="progressbar"><i id="pbar"></i></div>
+    <div class="qmeta"><span id="qcount"></span><span id="qlane"></span></div>
+    <div id="qcard"></div>
+  </div>
+</section>
+
+<!-- ============ GATE ============ -->
+<section id="gate" class="wrap padtop hide">
+  <div class="qshell">
+    <div class="qkicker">Last step</div>
+    <h2 class="qtitle">Your check is scored. Where should it go?</h2>
+    <p class="qhelp">The full report is on the next screen either way. These details put your name on it and let it be sent on.</p>
+
+    <div class="teaser">
+      <div class="eyebrow" style="margin:0 0 8px">Ready and waiting</div>
+      <div style="font-size:20px;font-weight:700;margin-bottom:6px">Your verdict: <span class="blur">Leaking</span></div>
+      <div class="small muted">Weakest area: <span class="blur">Controls and Approvals, 4.0 of 10</span> · Monthly cost of manual handling: <span class="blur">$41,600</span></div>
+    </div>
+
+    <div class="gategrid">
+      <div class="field"><label for="gf">First name</label><input type="text" id="gf" autocomplete="given-name"></div>
+      <div class="field"><label for="gl">Surname</label><input type="text" id="gl" autocomplete="family-name"></div>
+      <div class="field"><label for="ge">Work email</label><input type="email" id="ge" autocomplete="email"></div>
+      <div class="field"><label for="gc">Company</label><input type="text" id="gc" autocomplete="organization"></div>
+    </div>
+    <div id="gateErr" class="err hide"></div>
+    <div class="qnav">
+      <button class="linkbtn" id="gateBack">← Back to the last question</button>
+      <button class="btn" id="gateGo">Show my report →</button>
+    </div>
+    <p class="tiny" style="margin-top:18px">Demo build: nothing is sent and nothing is stored. In the live version the report emails itself here on unlock and posts the lead to Auditoria's pipeline.</p>
+  </div>
+</section>
+
+<!-- ============ REPORT ============ -->
+<section id="report" class="wrap padtop hide"></section>
+
+<script>
+"use strict";
+
+/* =======================================================================
+   1. CONTENT
+   ======================================================================= */
+
+const CUR = {sym:"$", code:"USD"};
+
+const MODULES = {
+  smartvendor:{n:"SmartVendor", d:"Runs AP end to end: digitises and codes invoices in any format, language or currency, then routes approvals and accruals."},
+  aphelp:{n:"AP Helpdesk", d:"Answers supplier payment status requests, statements and disputes without a person in the loop."},
+  smartcustomer:{n:"SmartCustomer", d:"Prioritises receivables, runs collections outreach, matches remittances and applies cash."},
+  arhelp:{n:"AR Helpdesk", d:"Handles customer billing queries and invoice copy requests end to end."},
+  smartresearch:{n:"SmartResearch", d:"Answers questions about live financial data in plain language, across every entity, with no SQL and no analyst."},
+  guardian:{n:"Guardian", d:"Governs what the agents are allowed to do: your rules, your approval thresholds, an audit trail on every action."}
+};
+
+const BANDS = [
+  {k:"contained", n:"Contained", r:"7 or above", m:"The back office is holding. Nothing is failing, so the work is protecting that position as volume grows.",
+   who:"Controls are written down, exceptions are the minority, and finance can answer its own questions."},
+  {k:"leaking",  n:"Leaking",  r:"4 to 7", m:"One area is quietly costing you every month. Nothing has broken, which is exactly why nobody has priced it.",
+   who:"The process works because people carry it. That cost is real, and it shows up in Part 2."},
+  {k:"exposed",  n:"Exposed",  r:"under 4", m:"An area is weak enough that the next volume spike, audit or bad actor will find it before you do.",
+   who:"Fix the control or the capacity before adding anything on top of it."}
+];
+
+/* ---- shared sizing questions (both lanes) ---- */
+function sizingQs(lane){
+  const unit = lane==="payables" ? "supplier invoices" : "customer invoices";
+  const excQ = lane==="payables"
+    ? "What share of invoices need a person to fix something before they can be paid?"
+    : "What share of incoming payments need a person to work out what they are for?";
+  const excHelp = lane==="payables"
+    ? "This is the single biggest driver of the number in your report. An exception is any invoice that stops and waits for a human."
+    : "This is the single biggest driver of the number in your report. An exception is any payment that cannot be matched and applied without a person.";
+  return [
+  {
+    id:"exrate", pillar:"data", kind:"size", field:"rate",
+    q: excQ, help: excHelp,
+    hurts: lane==="payables"
+      ? "Exceptions are where the cost is. Every one of them is a person stopping, opening something, working out what it is and typing it somewhere. The rate decides whether that is a task or a department."
+      : "Unmatched cash is the cost. Every payment that cannot be applied automatically is a person reading a remittance, opening the ledger and working out which invoices it covers.",
+    fix:{mod:"smartvendor", what:"Digitises and codes what arrives so the exception is the exception, not the norm.", good:"An exception rate you measure weekly and can watch fall.",
+         modAR:"smartcustomer", whatAR:"Matches remittances to invoices automatically and applies the cash.", goodAR:"Most payments applied on the day they land, with no person involved."},
+    opts:[
+      {t:"Under 10 in every 100", s:8.5, lo:.05, hi:.10},
+      {t:"10 to 25 in every 100", s:6,   lo:.10, hi:.25},
+      {t:"25 to 50 in every 100", s:3.5, lo:.25, hi:.50},
+      {t:"More than half of them", s:2,  lo:.50, hi:.70, placeholder:"the high end of 70 in every 100 is a stated placeholder for a band with no ceiling, not your figure"},
+      {t:"We do not measure it",  s:2.5, unmeasured:true}
+    ]
+  },
+  {
+    id:"volume", kind:"size", field:"vol",
+    q:`Roughly how many ${unit} do you handle in a month?`,
+    help:"A band is fine. If you know the exact figure, type it underneath and we will use that instead.",
+    opts:[
+      {t:"Fewer than 1,000", lo:500, hi:1000},
+      {t:"1,000 to 5,000",   lo:1000, hi:5000},
+      {t:"5,000 to 25,000",  lo:5000, hi:25000},
+      {t:"More than 25,000", lo:25000, hi:50000, placeholder:"the high end of 50,000 is a stated placeholder for a band with no ceiling, not your figure"}
+    ]
+  },
+  {
+    id:"minutes", kind:"size", field:"mins",
+    q:"When one of those needs a person, how long does it take end to end?",
+    help:"Include the chasing, the email thread and the re keying, not just the moment someone fixes it.",
+    opts:[
+      {t:"About 10 minutes",      lo:8,   hi:12},
+      {t:"About half an hour",    lo:25,  hi:35},
+      {t:"About an hour",         lo:50,  hi:70},
+      {t:"Half a morning or more",lo:150, hi:210}
+    ]
+  },
+  {
+    id:"hourly", kind:"size", field:"rateHr",
+    q:"Whose time is being spent on those, and roughly what does an hour of it cost you?",
+    help:"Fully loaded means salary plus employer costs, spread across the working year, so it is higher than the hourly rate on a payslip. Pick the seat that does most of this work. The numbers are the same figures whichever currency symbol you picked; we do not convert between them.",
+    opts:[
+      {t:"25 an hour, an AP or AR clerk",            lo:22, hi:28},
+      {t:"40 an hour, an experienced specialist",     lo:36, hi:44},
+      {t:"60 an hour, a team lead or supervisor",     lo:54, hi:66},
+      {t:"80 an hour or more, a manager or controller", lo:78, hi:95, placeholder:"the high end of 95 an hour is a stated placeholder for a band with no ceiling, not your figure"},
+      {t:"I would rather not guess", unmeasured:true}
+    ]
+  }];
+}
+
+const LENS = [
+  {id:"role", kind:"lens", q:"Which seat best describes you?",
+   help:"It sets the language the report is written in. It is not scored.",
+   optsAP:["Controller or Finance Director","AP or Shared Services Manager","CFO or VP Finance","Procurement, Audit or IT"],
+   optsAR:["Controller or Finance Director","AR, Credit or Collections Manager","CFO or VP Finance","Sales Operations or IT"]},
+  {id:"industry", kind:"lens", q:"Which of these is closest to your world?",
+   help:"It shapes the risk checks in Part 3. Fraud and waste show up differently in a university than in a restaurant group.",
+   opts:["Higher education","Healthcare","Multi site consumer, retail or hospitality","Technology, software or financial services","Something else"]},
+  {id:"erp", kind:"lens", q:"What sits at the centre of your finance stack?",
+   help:"It decides where the work would actually plug in. Auditoria's agents run inside the ERP rather than beside it.",
+   opts:["Workday","SAP","Oracle","NetSuite","More than one, and they do not talk to each other","Something else"]}
+];
+
+const LANES = {
+  payables:{
+    id:"payables", name:"Payables", short:"AP",
+    thing:"invoice", things:"invoices", counterparty:"supplier",
+    pillars:{
+      controls:{n:"Controls and Approvals", d:"Whether anything can leave the building without a rule, a threshold and a named owner behind it.",
+        lo:"A 1 means changes and approvals happen over email, and nobody could reconstruct who allowed what.",
+        hi:"A 10 means every change and every exception meets a written rule, an owner and an audit trail."},
+      data:{n:"Data and Matching", d:"How much of what arrives can be read, coded and matched without a person touching it.",
+        lo:"A 1 means invoices arrive in any format and a person retypes most of them.",
+        hi:"A 10 means structured arrival, automatic coding and matching, with people only on genuine exceptions."},
+      capacity:{n:"Team Capacity", d:"How much of the team's week is spent on work that does not need judgement.",
+        lo:"A 1 means the team is the process, and close only lands because people work late.",
+        hi:"A 10 means the team handles exceptions and relationships, and close is uneventful."},
+      systems:{n:"Systems and Visibility", d:"Whether finance can answer its own questions, and how many places one transaction has to travel through.",
+        lo:"A 1 means nobody can answer a straight question without a week and a spreadsheet.",
+        hi:"A 10 means one connected path and a plain language answer in minutes."}
+    },
+    goalOpts:[
+      "Close the month faster without adding headcount",
+      "Get non PO spend under control",
+      "Take the supplier email load off the team",
+      "Give finance a straight answer on cash and exposure"
+    ],
+    goalFit:{ "Close the month faster without adding headcount":"capacity",
+              "Get non PO spend under control":"controls",
+              "Take the supplier email load off the team":"capacity",
+              "Give finance a straight answer on cash and exposure":"systems" },
+    qs:[
+      {id:"bankchange", pillar:"controls",
+       q:"A supplier emails asking to change the bank account you pay them into. What happens next?",
+       help:"This is the shortest path between a phishing email and a real payment, and it is the one most teams have never written down.",
+       hurts:"A bank detail change with no independent verification does not fail loudly. It fails once, for a large amount, and the money is gone before the statement arrives.",
+       fix:{mod:"guardian", what:"applies your verification rule to every change request and logs each one against the policy that allowed it.", good:"Every bank detail change checked against a number you already hold, logged, and reviewable months later."},
+       opts:[
+        {t:"It is verified by calling a number we already hold on file, and the change is logged", s:9},
+        {t:"One person checks it, but there is no set process written down", s:5},
+        {t:"It is approved over email by whoever is available", s:2.5},
+        {t:"I am not certain who owns that", s:2}]},
+      {id:"nonpo", pillar:"controls",
+       q:"An invoice arrives with no purchase order behind it. What happens to it?",
+       help:"Non PO spend is where budget leaks quietly, because there is nothing to match it against.",
+       hurts:"An invoice with no PO and no owner has nothing to fail against. It gets paid because it is old and loud, not because anyone checked it was right.",
+       fix:{mod:"smartvendor", what:"routes non PO invoices to a named owner against your spend limits, and codes them from history rather than from memory.", good:"Every non PO invoice with a named owner and a coding decision that can be explained."},
+       opts:[
+        {t:"It routes automatically to a named owner with a spend limit", s:9},
+        {t:"Someone works out who to send it to", s:5},
+        {t:"It waits until the supplier chases us", s:3},
+        {t:"We do not separate them from the rest", s:2}]},
+      {id:"dupes", pillar:"controls",
+       q:"How would you catch the same invoice being paid twice?",
+       help:"Duplicates are rarely identical. They arrive twice in different formats, from different addresses, weeks apart.",
+       hurts:"Duplicate and near duplicate payments are the definition of quiet waste: nobody complains, because the supplier has been paid. You only find them if you look, and looking is a job nobody owns.",
+       fix:{mod:"guardian", what:"checks every invoice against what has already been paid, including near matches, before the payment run.", good:"Duplicates stopped before payment, with the match shown, rather than recovered afterwards."},
+       opts:[
+        {t:"Automatic duplicate and near duplicate checks before every payment run", s:9},
+        {t:"The ERP flags exact matches only", s:6},
+        {t:"Someone usually spots it", s:3.5},
+        {t:"We find out when the supplier tells us", s:2}]},
+      {id:"arrive", pillar:"data",
+       q:"How do invoices actually reach you?",
+       help:"How something arrives decides how much of it a person has to retype.",
+       hurts:"Every format that arrives unstructured becomes a person reading a document and typing what they see. That is where coding errors, delays and duplicates are born.",
+       fix:{mod:"smartvendor", what:"digitises PO and non PO invoices in any format, language or currency, then classifies, matches and codes them.", good:"Whatever the supplier sends, it arrives in your ERP structured and coded."},
+       opts:[
+        {t:"Almost all through a supplier portal, in a structured format", s:9},
+        {t:"A mix of portal and email PDFs", s:6.5},
+        {t:"Mostly email attachments and some paper", s:4},
+        {t:"Every format, several languages and several currencies", s:3}]},
+      {id:"inquiries", pillar:"capacity",
+       q:"How much of the AP team's week goes on answering supplier emails and calls?",
+       help:"Where is my payment is the most expensive question in finance, because it is asked thousands of times.",
+       hurts:"Supplier inquiry load is invisible in every report and obvious in every team. It is the reason the same people cannot get to the exceptions, and the reason close runs late.",
+       fix:{mod:"aphelp", what:"answers payment status, statement and dispute questions directly, so the team never sees most of them.", good:"The inbox handled, and the team on exceptions and supplier relationships instead."},
+       opts:[
+        {t:"Under a fifth of it", s:8.5},
+        {t:"About a quarter", s:6},
+        {t:"About half", s:3.5},
+        {t:"Most of it", s:2}]},
+      {id:"close", pillar:"capacity",
+       q:"What happens at month end close?",
+       help:"Close is where every upstream weakness lands at once.",
+       hurts:"A close that only lands on overtime is a capacity gap with a deadline attached. Estimated accruals mean the numbers going to the board are a guess with a decimal point.",
+       fix:{mod:"smartvendor", what:"accrues supplier expenses autonomously from what is genuinely outstanding, rather than from an estimate.", good:"Close lands on time on ordinary hours, with accruals built from real invoice data."},
+       opts:[
+        {t:"It closes on time without extra hours", s:9},
+        {t:"It closes on time, but on overtime", s:6},
+        {t:"It slips a day or two most months", s:4},
+        {t:"Accruals are estimated, because invoices arrive after we close", s:2.5}]},
+      {id:"answer", pillar:"systems",
+       q:"If your CFO asked which suppliers caused the most invoice exceptions last month, how long would that take to answer?",
+       help:"The speed of that answer tells you whether your data is connected or just stored.",
+       hurts:"If a straight question takes a week, nobody asks it. Problems then run for quarters, not days, because the evidence to challenge them never arrives in time.",
+       fix:{mod:"smartresearch", what:"answers questions on live financial data in plain language, across every entity, with no SQL and no waiting for a report.", good:"Anyone in finance gets a sourced answer in minutes, without booking an analyst."},
+       opts:[
+        {t:"Minutes, anyone can self serve it", s:9},
+        {t:"About a day", s:6},
+        {t:"About a week, someone has to build it", s:3.5},
+        {t:"We could not answer that reliably", s:2}]},
+      {id:"systems", pillar:"systems",
+       q:"How many systems does one invoice touch before it is paid?",
+       help:"Every hop is a place where something waits, gets rekeyed, or gets lost.",
+       hurts:"Each additional system is another queue, another copy of the truth and another reconciliation nobody planned for. Fragmentation is why the same invoice can be both approved and missing.",
+       fix:{mod:"smartvendor", what:"runs inside the ERP you already have and connects the steps rather than adding another place to look.", good:"One path from arrival to payment, visible end to end, with no spreadsheet holding it together."},
+       opts:[
+        {t:"One", s:9},
+        {t:"Two", s:7},
+        {t:"Three or four", s:4.5},
+        {t:"Five or more, plus spreadsheets", s:2.5}]}
+    ],
+    moves:{
+      controls:{n:"Put a written rule and a named owner on every change and exception", mod:"guardian", speed:8,
+        speedWhy:"a speed of 8 because it is a policy and a control switched on, not a rebuild",
+        why:"Controls are the only area where being wrong once is expensive. A rule that can fail is what turns a good intention into a stop."},
+      data:{n:"Digitise and code the invoices before a person ever sees them", mod:"smartvendor", speed:7,
+        speedWhy:"a speed of 7 because it runs inside the ERP you already have, but supplier formats take a few weeks to learn",
+        why:"This is the volume lever. Everything downstream, the close, the exceptions, the team's week, is set by how much arrives already readable."},
+      capacity:{n:"Take the supplier inbox off the team", mod:"aphelp", speed:9,
+        speedWhy:"a speed of 9 because it sits on the mailbox and needs nothing rebuilt behind it",
+        why:"The fastest visible win. It gives the team its week back without touching a single approval path."},
+      systems:{n:"Make the back office answerable in plain language", mod:"smartresearch", speed:8,
+        speedWhy:"a speed of 8 because it reads what is already there rather than changing it",
+        why:"Answers are what let you prove the other three worked. Without them, every improvement is a claim rather than a measurement."}
+    },
+    stateKeys:["bankchange","nonpo","inquiries","close"],
+    costLabel:"manual invoice handling"
+  },
+
+  receivables:{
+    id:"receivables", name:"Receivables", short:"AR",
+    thing:"payment", things:"payments", counterparty:"customer",
+    pillars:{
+      controls:{n:"Controls and Prioritisation", d:"Whether the ledger is worked in a deliberate order, with owners and follow up, or by whoever is loudest.",
+        lo:"A 1 means chasing happens when someone remembers, and nobody owns a promise once it is made.",
+        hi:"A 10 means the ledger is risk ranked, every promise is tracked, and every dispute has an owner and a clock."},
+      data:{n:"Data and Matching", d:"How much incoming cash can be matched and applied without a person working out what it was for.",
+        lo:"A 1 means remittances arrive in any form, or not at all, and cash sits unapplied.",
+        hi:"A 10 means remittances are read automatically, matched to invoices and applied the day cash lands."},
+      capacity:{n:"Team Capacity", d:"How much of the team's week goes on chasing and answering, rather than on the accounts that need judgement.",
+        lo:"A 1 means the team is the process, and the ledger only moves when someone pushes it.",
+        hi:"A 10 means the routine chasing runs itself and the team works the exceptions."},
+      systems:{n:"Systems and Visibility", d:"Whether you can see which accounts are drifting late before they do, and how many places a payment travels through.",
+        lo:"A 1 means you find out an account is a problem when it is already old.",
+        hi:"A 10 means late trends surface early and any question about the ledger is answerable in minutes."}
+    },
+    goalOpts:[
+      "Bring DSO down",
+      "Stop cash sitting unapplied",
+      "Take the chasing load off the team",
+      "See which accounts are at risk before they age"
+    ],
+    goalFit:{ "Bring DSO down":"controls",
+              "Stop cash sitting unapplied":"data",
+              "Take the chasing load off the team":"capacity",
+              "See which accounts are at risk before they age":"systems" },
+    qs:[
+      {id:"prioritise", pillar:"controls",
+       q:"How do you decide which customer to chase first?",
+       help:"The order you work the ledger in is the single biggest lever on how fast cash arrives.",
+       hurts:"Working the ledger by age or by volume means the largest recoverable balances get the same attention as the smallest. Cash arrives in the order you chased, not the order you needed.",
+       fix:{mod:"smartcustomer", what:"ranks the ledger by risk and recoverable value, then runs the outreach in that order.", good:"The team starts every day on the accounts that move the number most."},
+       opts:[
+        {t:"Accounts are risk scored and prioritised automatically", s:9},
+        {t:"A spreadsheet someone maintains", s:5.5},
+        {t:"Oldest first", s:3.5},
+        {t:"Whoever shouts loudest, or whoever we get to", s:2}]},
+      {id:"disputes", pillar:"controls",
+       q:"What happens when a customer raises a billing dispute?",
+       help:"A dispute is an invoice that has stopped. What matters is whether anyone is holding the clock.",
+       hurts:"An unowned dispute is an invoice that ages without anyone deciding it should. It shows up as a bad debt conversation months later, when the evidence has gone cold.",
+       fix:{mod:"arhelp", what:"takes the query end to end, gathers the invoice evidence and resolves or escalates it with the trail attached.", good:"Every dispute owned, timed and closed, rather than discovered on the ageing report."},
+       opts:[
+        {t:"It is logged, owned by a named person and tracked to a close date", s:9},
+        {t:"It is logged, but it lives in someone's email", s:5},
+        {t:"It depends who picks it up", s:3},
+        {t:"We find out about it on the ageing report", s:2}]},
+      {id:"promises", pillar:"controls",
+       q:"When a customer promises to pay on a date, how is that tracked?",
+       help:"A promise nobody follows up is just a delay you agreed to.",
+       hurts:"Unfollowed promises are the cheapest cash in the ledger to lose. The customer has already agreed to pay. All that is missing is somebody noticing they did not.",
+       fix:{mod:"smartcustomer", what:"records the promise, watches the date and follows up automatically the moment it passes.", good:"Every promise tracked to its date, with follow up that happens whether or not anyone remembers."},
+       opts:[
+        {t:"It is recorded and followed up automatically on the date", s:9},
+        {t:"A note on the account in the ledger", s:5.5},
+        {t:"In someone's diary or head", s:3},
+        {t:"We do not track promises separately", s:2}]},
+      {id:"remitform", pillar:"data",
+       q:"How do remittance advices reach you?",
+       help:"Whether cash can be applied automatically is decided almost entirely by how the remittance arrives.",
+       hurts:"A payment you cannot match is cash you have but cannot use. It sits on account, the customer still shows as owing, and someone chases a debt that has already been paid.",
+       fix:{mod:"smartcustomer", what:"reads remittances in whatever form they arrive, matches them to open invoices and applies the cash.", good:"Cash applied the day it lands, and no customer chased for money they already sent."},
+       opts:[
+        {t:"A structured file or through a portal", s:9},
+        {t:"A mix of PDFs and emails", s:6},
+        {t:"Email text and attachments, in every format going", s:3.5},
+        {t:"Often they do not arrive at all", s:2}]},
+      {id:"inquiries", pillar:"capacity",
+       q:"How much of the AR team's week goes on chasing and answering billing queries?",
+       help:"Send me a copy of the invoice is the AR version of the most expensive question in finance.",
+       hurts:"Routine chasing and copy invoice requests fill the week of the people who should be working the difficult accounts. The hard accounts then get the leftovers.",
+       fix:{mod:"arhelp", what:"handles copy invoice requests, statements and routine queries directly, and escalates only what needs judgement.", good:"The routine handled automatically, and the team on the accounts that actually need them."},
+       opts:[
+        {t:"Under a fifth of it", s:8.5},
+        {t:"About a quarter", s:6},
+        {t:"About half", s:3.5},
+        {t:"Most of it", s:2}]},
+      {id:"cashapply", pillar:"capacity",
+       q:"How long after cash lands is it applied to the right account?",
+       help:"The gap between cash arriving and cash being applied is a gap in everything you report.",
+       hurts:"Unapplied cash makes the ledger wrong in both directions: your DSO looks worse than it is, and your team chases customers who have already paid.",
+       fix:{mod:"smartcustomer", what:"matches and applies incoming cash automatically, leaving only genuine exceptions for a person.", good:"Cash applied same day, so the ledger is true when someone looks at it."},
+       opts:[
+        {t:"Same day, automatically", s:9},
+        {t:"Next day", s:6.5},
+        {t:"Two or three days", s:4},
+        {t:"Longer, and in batches", s:2.5}]},
+      {id:"answer", pillar:"systems",
+       q:"If your CFO asked which accounts are trending late this month, how long would that take to answer?",
+       help:"Trending late is a different question from already late, and it is the one that is still actionable.",
+       hurts:"By the time an account is on the ageing report, the conversation is a recovery conversation. Seeing the drift early is the difference between a phone call and a write off.",
+       fix:{mod:"smartresearch", what:"answers questions on live receivables data in plain language, including behaviour trends across customers.", good:"Drift visible while it is still a phone call, not a provision."},
+       opts:[
+        {t:"Minutes, anyone can self serve it", s:9},
+        {t:"About a day", s:6},
+        {t:"About a week, someone has to build it", s:3.5},
+        {t:"We could not answer that reliably", s:2}]},
+      {id:"systems", pillar:"systems",
+       q:"How many systems does one payment touch before the cash is applied?",
+       help:"Every hop is a place where cash can sit, unmatched, while the ledger says something else.",
+       hurts:"Each additional system is another copy of the truth. Fragmentation is why an account can be paid in one place and overdue in another.",
+       fix:{mod:"smartcustomer", what:"runs inside the ERP you already have and closes the loop from remittance to applied cash.", good:"One path from payment to applied, with no spreadsheet in the middle."},
+       opts:[
+        {t:"One", s:9},
+        {t:"Two", s:7},
+        {t:"Three or four", s:4.5},
+        {t:"Five or more, plus spreadsheets", s:2.5}]}
+    ],
+    moves:{
+      controls:{n:"Work the ledger by risk, not by age", mod:"smartcustomer", speed:8,
+        speedWhy:"a speed of 8 because it reprioritises work you are already doing rather than adding new work",
+        why:"Order is free. Chasing the same ledger in a different sequence moves cash without anyone doing more."},
+      data:{n:"Match remittances and apply the cash automatically", mod:"smartcustomer", speed:7,
+        speedWhy:"a speed of 7 because remittance formats take a few weeks to learn before the match rate settles",
+        why:"This is the truth lever. Until cash is applied same day, every other number you report about the ledger is slightly wrong."},
+      capacity:{n:"Take the billing inbox off the team", mod:"arhelp", speed:9,
+        speedWhy:"a speed of 9 because it sits on the mailbox and needs nothing rebuilt behind it",
+        why:"The fastest visible win. It returns the team's week without changing a single credit policy."},
+      systems:{n:"Make the ledger answerable in plain language", mod:"smartresearch", speed:8,
+        speedWhy:"a speed of 8 because it reads what is already there rather than changing it",
+        why:"Seeing drift early is what turns collections from recovery into prevention."}
+    },
+    stateKeys:["prioritise","remitform","cashapply","inquiries"],
+    costLabel:"manual payment handling"
+  }
+};
+
+const PILLAR_ORDER = ["controls","data","capacity","systems"];
+
+/* checks in Part 3, one per area */
+const CHECKS = {
+  payables:{
+    controls:{k:"The authorisation check", h:"Could money leave on somebody's word alone?",
+      p:"Controls only count when they can stop something. A rule with no threshold and no owner is a preference."},
+    data:{k:"The readability check", h:"How much of what arrives has to be retyped by a person?",
+      p:"Everything downstream inherits this. Coding errors, duplicate payments and late accruals all start with a document nobody could read automatically."},
+    capacity:{k:"The load check", h:"Is the team carrying the process, or running it?",
+      p:"A team that is the process cannot absorb a volume spike, an audit or a resignation."},
+    systems:{k:"The answerability check", h:"Can finance answer its own questions in time to act on them?",
+      p:"An answer that takes a week is a post mortem. Problems run for quarters when the evidence to challenge them arrives late."}
+  },
+  receivables:{
+    controls:{k:"The prioritisation check", h:"Is the ledger worked in a deliberate order?",
+      p:"Cash arrives in the order you chased. If the order is accidental, so is the cash flow."},
+    data:{k:"The matching check", h:"Can incoming cash be applied without a person decoding it?",
+      p:"Unmatched cash makes the ledger wrong in both directions and puts your team on the phone to customers who have already paid."},
+    capacity:{k:"The load check", h:"Is the team spending its week on the accounts that matter?",
+      p:"Routine chasing crowds out the difficult accounts, and the difficult accounts are where the money is."},
+    systems:{k:"The early warning check", h:"Do you see an account drifting before it ages?",
+      p:"Once it is on the ageing report the conversation has already changed from a phone call to a recovery."}
+  }
+};
+
+/* =======================================================================
+   2. STATE
+   ======================================================================= */
+const S = {
+  lane:null, step:0, answers:{}, own:{}, gate:{}, questions:[]
+};
+
+const $  = (s,r)=> (r||document).querySelector(s);
+const $$ = (s,r)=> Array.from((r||document).querySelectorAll(s));
+
+/* ---- backend, if there is one. Every call fails silent: opened from disk the
+   app still runs end to end, it just tells the reader plainly that it is a preview. ---- */
+const API={live:false, email:false, booking:"https://info.auditoria.ai/request-a-demo"};
+
+function post(path,body){
+  return fetch(path,{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify(body||{})}).then(r=>r.ok?r.json():Promise.reject(r.status));
+}
+function track(name,detail){
+  if(!API.live) return;
+  post("/api/event",{name:name, lane:S.lane||"", detail:detail||""}).catch(()=>{});
+}
+function reportHTMLForEmail(){
+  const src=$("#report"); if(!src) return "";
+  const clone=src.cloneNode(true);
+  Array.from(clone.querySelectorAll(".partnav, .ctarow, .walkbox")).forEach(n=>n.remove());
+  return clone.innerHTML;
+}
+function detectBackend(){
+  fetch("/api/config").then(r=>r.ok?r.json():Promise.reject()).then(c=>{
+    API.live=!!c.live; API.email=!!c.email; if(c.booking) API.booking=c.booking;
+    const rib=$("#ribbon");
+    if(API.live) rib.textContent = API.email
+      ? "The Back Office Exposure Check · built for Auditoria.AI by Navvai"
+      : "The Back Office Exposure Check · built for Auditoria.AI by Navvai · email sending not yet configured";
+    track("app_loaded");
+  }).catch(()=>{});
+}
+
+function show(id){
+  ["home","quiz","gate","report"].forEach(x=>$("#"+x).classList.toggle("hide", x!==id));
+  window.scrollTo({top:0,behavior:"instant"});
+}
+function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+function money(n){
+  if(!isFinite(n)) return "not computed";
+  const r = n>=10000 ? Math.round(n/100)*100 : Math.round(n);
+  return CUR.sym + r.toLocaleString("en-GB");
+}
+function num(n){return Math.round(n).toLocaleString("en-GB");}
+function one(n){return (Math.round(n*10)/10).toFixed(1);}
+
+/* =======================================================================
+   3. HOME: constellation + canvas
+   ======================================================================= */
+const NODES = [
+  {a:-90,  t:["SmartResearch"], cap:"<b>SmartResearch.</b> Ask about cash position, payment behaviour or exceptions in plain language and get an answer from live data. No SQL, no analyst, no waiting for next week's report."},
+  {a:-18,  t:["Invoice Digitization","& Coding"], cap:"<b>Invoice digitization and coding.</b> PO and non PO invoices, any format, any language, any currency, automatically classified, matched, coded and routed."},
+  {a:54,   t:["Governed","Autonomy"], cap:"<b>Governed autonomy.</b> The agents work to your rules and your approval thresholds, and every action they take is auditable."},
+  {a:126,  t:["Collections","& Remittance"], cap:"<b>Collections and remittance.</b> Prioritise outreach by risk, automate follow up, match remittances and accelerate the cash that is already owed to you."},
+  {a:198,  t:["Supplier Inquiry","Automation"], cap:"<b>Supplier inquiry automation.</b> Payment status requests, statements and disputes answered without a person in the loop."}
+];
+
+function buildOrbit(){
+  const cx=310, cy=310, R=215;
+  const nodesG=$("#nodes"), spokesG=$("#spokes"), pulsesG=$("#pulses");
+  if(!nodesG) return;
+  const pts=[];
+  NODES.forEach((n,i)=>{
+    const rad=n.a*Math.PI/180;
+    const x=cx+R*Math.cos(rad), y=cy+R*Math.sin(rad);
+    pts.push({x,y});
+    spokesG.insertAdjacentHTML("beforeend",
+      `<line class="spoke" x1="${cx}" y1="${cy}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}"/>`);
+
+    const right = Math.cos(rad) > .2, left = Math.cos(rad) < -.2;
+    const anchor = right ? "start" : left ? "end" : "middle";
+    const tx = right ? x+26 : left ? x-26 : x;
+    const ty = (n.a===-90) ? y-32 : y - (n.t.length>1 ? 8 : 0);
+    const tspans = n.t.map((line,k)=>`<tspan x="${tx.toFixed(1)}" dy="${k===0?0:20}">${esc(line)}</tspan>`).join("");
+    nodesG.insertAdjacentHTML("beforeend",
+      `<g class="node" data-i="${i}" tabindex="0" role="button" aria-label="${esc(n.t.join(" "))}">
+         <circle class="nring" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="27" fill="none" stroke="url(#ringGrad)" stroke-width="2"/>
+         <circle class="ncore" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="8" fill="#22D3EE"/>
+         <text text-anchor="${anchor}" y="${ty.toFixed(1)}">${tspans}</text>
+       </g>`);
+    pulsesG.insertAdjacentHTML("beforeend",
+      `<circle class="pz" data-i="${i}" r="3.2" fill="#22D3EE" opacity=".9"/>`);
+  });
+
+  const cap=$("#nodecap");
+  $$(".node").forEach(g=>{
+    const i=+g.dataset.i;
+    const on=()=>{ $$(".node").forEach(o=>{o.classList.toggle("dim",o!==g);o.classList.toggle("on",o===g);}); cap.innerHTML=NODES[i].cap; };
+    const off=()=>{ $$(".node").forEach(o=>{o.classList.remove("dim","on");});
+      cap.innerHTML="<b>Tap a capability</b> to see what it does. This check tells you which of them your answers point at."; };
+    g.addEventListener("mouseenter",on); g.addEventListener("focus",on);
+    g.addEventListener("mouseleave",off); g.addEventListener("blur",off);
+    g.addEventListener("click",on);
+  });
+
+  if(window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const pz=$$(".pz"); const t0=performance.now();
+  (function loop(t){
+    const el=(t-t0)/1000;
+    pz.forEach((p,i)=>{
+      const prog=((el*0.42 + i*0.2) % 1);
+      const e = prog<.5 ? 2*prog*prog : 1-Math.pow(-2*prog+2,2)/2;
+      p.setAttribute("cx",(cx+(pts[i].x-cx)*e).toFixed(1));
+      p.setAttribute("cy",(cy+(pts[i].y-cy)*e).toFixed(1));
+      p.setAttribute("opacity",(Math.sin(prog*Math.PI)*0.95).toFixed(2));
+    });
+    requestAnimationFrame(loop);
+  })(t0);
+
+  const wrap=$(".orbitwrap"), orbit=$("#orbit");
+  wrap.addEventListener("mousemove",e=>{
+    const r=wrap.getBoundingClientRect();
+    const dx=(e.clientX-r.left-r.width/2)/r.width, dy=(e.clientY-r.top-r.height/2)/r.height;
+    orbit.style.transform=`translate(${(dx*14).toFixed(1)}px, ${(dy*14).toFixed(1)}px)`;
+  });
+  wrap.addEventListener("mouseleave",()=>{orbit.style.transform="";});
+}
+
+function bgCanvas(){
+  const c=$("#bgCanvas"); if(!c) return;
+  if(window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const x=c.getContext("2d"); let w,h,dots=[];
+  function size(){
+    w=c.width=innerWidth*devicePixelRatio; h=c.height=innerHeight*devicePixelRatio;
+    c.style.width=innerWidth+"px"; c.style.height=innerHeight+"px";
+    dots=[]; const n=Math.min(90,Math.round(innerWidth/16));
+    for(let i=0;i<n;i++) dots.push({x:Math.random()*w,y:Math.random()*h,r:(Math.random()*1.5+.4)*devicePixelRatio,
+      s:(Math.random()*.16+.04)*devicePixelRatio, o:Math.random()*.5+.15});
+  }
+  size(); addEventListener("resize",size);
+  let t=0;
+  (function draw(){
+    x.clearRect(0,0,w,h); t+=0.0045;
+    dots.forEach(d=>{ d.y-=d.s; if(d.y<-5) d.y=h+5;
+      x.beginPath(); x.arc(d.x,d.y,d.r,0,7); x.fillStyle=`rgba(160,190,255,${d.o})`; x.fill(); });
+    for(let k=0;k<3;k++){
+      x.beginPath();
+      for(let i=0;i<=w;i+=14*devicePixelRatio){
+        const y=h*0.80 + Math.sin(i*0.0016/devicePixelRatio + t + k*1.1)*(30+k*16)*devicePixelRatio + k*22*devicePixelRatio;
+        i===0?x.moveTo(i,y):x.lineTo(i,y);
+      }
+      x.strokeStyle=`rgba(${k===0?"34,211,238":"139,92,246"},${0.10-k*0.025})`;
+      x.lineWidth=1.2*devicePixelRatio; x.stroke();
+    }
+    requestAnimationFrame(draw);
+  })();
+}
+
+/* =======================================================================
+   4. QUIZ
+   ======================================================================= */
+function buildQuestions(laneId){
+  const L=LANES[laneId];
+  const lens=LENS.map(q=>{
+    const o = q.optsAP ? (laneId==="payables"?q.optsAP:q.optsAR) : q.opts;
+    return {id:q.id, kind:"lens", q:q.q, help:q.help, opts:o.map(t=>({t}))};
+  });
+  const size=sizingQs(laneId);
+  const exr = size.find(q=>q.id==="exrate");
+  const rest = size.filter(q=>q.id!=="exrate");
+  const goal={id:"goal", kind:"goal", q:"What is the one outcome you most want in the next 12 months?",
+    help:"Every phase in the plan is filtered through this. If a step does not serve it, it does not make the plan.",
+    opts:L.goalOpts.map(t=>({t}))};
+  return [...lens, ...L.qs.slice(0,4), exr, ...L.qs.slice(4), ...rest, goal];
+}
+
+function startLane(id){
+  S.lane=id; S.step=0; S.answers={}; S.own={};
+  S.questions=buildQuestions(id);
+  track("lane_started", id);
+  show("quiz"); renderQ();
+}
+
+function renderQ(){
+  const q=S.questions[S.step], L=LANES[S.lane];
+  $("#pbar").style.width = ((S.step)/(S.questions.length)*100).toFixed(1)+"%";
+  $("#qcount").textContent = `Question ${S.step+1} of ${S.questions.length}`;
+  $("#qlane").textContent = `${L.name} lane · ${L.short}`;
+
+  const kicker = q.kind==="lens" ? "Setting the lens"
+    : q.kind==="size" ? "Your figures"
+    : q.kind==="goal" ? "The outcome"
+    : L.pillars[q.pillar].n;
+
+  const cur = q.id==="hourly" ? `<span class="curswitch" id="curSwitch">
+      <button data-c="$" class="${CUR.sym==="$"?"on":""}">$</button>
+      <button data-c="£" class="${CUR.sym==="£"?"on":""}">£</button>
+      <button data-c="€" class="${CUR.sym==="€"?"on":""}">€</button></span>` : "";
+
+  const opts=q.opts.map((o,i)=>{
+    let label=o.t;
+    if(q.id==="hourly") label=o.t.replace(/(\d[\d,]*)/, m => CUR.sym + m);
+    return `<button class="opt ${S.answers[q.id]&&S.answers[q.id].t===o.t?"sel":""}" data-i="${i}">${esc(label)}</button>`;
+  }).join("");
+
+  const ownVal = S.own[q.id]||"";
+  const ownRule = q.kind==="size"
+    ? "Typed answers are quoted in the report. If you type a figure here, it replaces the band above and the report says so."
+    : q.kind==="lens" || q.kind==="goal"
+    ? "Typed answers are quoted word for word in the report."
+    : "Typed answers are quoted word for word in the report and shape the wording. They do not change the scores, because scoring needs a tapped answer to compare against.";
+
+  $("#qcard").innerHTML = `
+    <div class="qkicker">${esc(kicker)}</div>
+    <h2 class="qtitle">${esc(q.q)}${cur}</h2>
+    <p class="qhelp">${esc(q.help)}</p>
+    <div class="opts" id="opts">${opts}</div>
+    <div class="ownbox">
+      <label for="ownIn">Or answer in your own words</label>
+      <textarea id="ownIn" rows="2" placeholder="Optional. Anything the options above did not cover.">${esc(ownVal)}</textarea>
+      <button class="micbtn" id="micBtn" type="button">🎙 Speak your answer</button>
+      <div class="ownrule">${esc(ownRule)}</div>
+    </div>
+    <div class="qnav">
+      <button class="linkbtn" id="backBtn">${S.step===0?"← Back to the home screen":"← Back"}</button>
+      <button class="btn" id="nextBtn">${S.step===S.questions.length-1?"Score my check →":"Next →"}</button>
+    </div>`;
+
+  $$("#opts .opt").forEach(b=>b.addEventListener("click",()=>{
+    const o=q.opts[+b.dataset.i];
+    S.answers[q.id]=Object.assign({},o,{qid:q.id});
+    $$("#opts .opt").forEach(x=>x.classList.remove("sel")); b.classList.add("sel");
+    setTimeout(next,190);
+  }));
+  $("#ownIn").addEventListener("input",e=>{S.own[q.id]=e.target.value;});
+  $("#backBtn").addEventListener("click",()=>{ if(S.step===0){show("home");} else {S.step--;renderQ();} });
+  $("#nextBtn").addEventListener("click",next);
+  if(cur) $$("#curSwitch button").forEach(b=>b.addEventListener("click",()=>{
+    CUR.sym=b.dataset.c; renderQ();
+  }));
+  setupMic();
+}
+
+function next(){
+  const q=S.questions[S.step];
+  if(!S.answers[q.id] && !(S.own[q.id]||"").trim()){
+    alert("Tap one of the options, or type an answer in your own words.");
+    return;
+  }
+  if(S.step<S.questions.length-1){ S.step++; renderQ(); window.scrollTo({top:0,behavior:"smooth"}); }
+  else { openGate(); }
+}
+
+function setupMic(){
+  const btn=$("#micBtn"), box=$("#ownIn");
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ btn.classList.add("hide"); return; }
+  let rec=null;
+  btn.addEventListener("click",()=>{
+    if(rec){ rec.stop(); rec=null; btn.classList.remove("rec"); btn.textContent="🎙 Speak your answer"; return; }
+    rec=new SR(); rec.lang="en-GB"; rec.interimResults=false;
+    rec.onresult=e=>{ const t=e.results[0][0].transcript;
+      box.value=(box.value?box.value+" ":"")+t; S.own[S.questions[S.step].id]=box.value; };
+    rec.onend=()=>{ rec=null; btn.classList.remove("rec"); btn.textContent="🎙 Speak your answer"; };
+    rec.start(); btn.classList.add("rec"); btn.textContent="● Listening, tap to stop";
+  });
+}
+
+/* =======================================================================
+   5. GATE
+   ======================================================================= */
+function openGate(){
+  const r=score();
+  const t=$(".teaser");
+  t.innerHTML=`<div class="eyebrow" style="margin:0 0 8px">Ready and waiting</div>
+    <div style="font-size:20px;font-weight:700;margin-bottom:6px">Your verdict: <span class="blur">${esc(r.band.n)}</span></div>
+    <div class="small muted">Weakest area: <span class="blur">${esc(r.weak.name)}, ${one(r.weak.score)} of 10</span> ·
+    Monthly cost of ${esc(LANES[S.lane].costLabel)}: <span class="blur">${r.cost.ok?money(r.cost.mid):"computed from your figures"}</span></div>`;
+  track("gate_reached", r.band.n);
+  show("gate");
+}
+$("#gateBack").addEventListener("click",()=>{show("quiz");renderQ();});
+$("#gateGo").addEventListener("click",()=>{
+  const f=$("#gf").value.trim(), l=$("#gl").value.trim(), e=$("#ge").value.trim(), c=$("#gc").value.trim();
+  const err=$("#gateErr");
+  if(!f||!l||!c||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)){
+    err.textContent="All four are needed: first name, surname, a valid work email and your company. The report carries your name, so it needs one.";
+    err.classList.remove("hide"); return;
+  }
+  err.classList.add("hide");
+  S.gate={first:f,last:l,email:e,company:c,role:(S.answers.role&&S.answers.role.t)||(S.own.role||"")};
+  renderReport(); show("report");
+  track("report_viewed");
+  sendLead();
+});
+
+function sendLead(){
+  if(!API.live) return;
+  const r=score(), rk=ranking(r), C=r.cost;
+  const answers={};
+  S.questions.forEach(q=>{
+    const a=S.answers[q.id], t=(S.own[q.id]||"").trim();
+    if(a||t) answers[q.id]={question:q.q, tapped:a?a.t:null, typed:t||null, score:a&&typeof a.s==="number"?a.s:null};
+  });
+  const payload={
+    first:S.gate.first, last:S.gate.last, email:S.gate.email, company:S.gate.company,
+    role:S.gate.role,
+    industry:(S.answers.industry&&S.answers.industry.t)||S.own.industry||"",
+    erp:(S.answers.erp&&S.answers.erp.t)||S.own.erp||"",
+    lane:S.lane, verdict:r.band.n, weakest:r.weak.name,
+    weakest_score:+one(r.weak.score), control_score:Math.round(r.avg*10),
+    gaps:r.gaps.length, currency:CUR.sym,
+    cost_month:C.ok?Math.round(C.mid):null,
+    goal:(S.answers.goal&&S.answers.goal.t)||S.own.goal||"",
+    first_move:rk[0].move.n,
+    answers:answers,
+    report_html:reportHTMLForEmail()
+  };
+  post("/api/lead",payload).then(res=>{
+    const el=$("#savedLine");
+    if(!el) return;
+    el.innerHTML = res && res.emailed
+      ? `<b>Saved and sent.</b> This report has been emailed to ${esc(S.gate.email)} and logged to Auditoria's pipeline. It carries a glossary at the end, so it can be forwarded to anyone who never saw the check.`
+      : `<b>Saved.</b> This check has been logged to Auditoria's pipeline. Email delivery switches on once the mail key is configured; until then, use Email me this report at the end to open a draft.`;
+  }).catch(()=>{});
+}
+
+/* =======================================================================
+   6. SCORING
+   ======================================================================= */
+function score(){
+  const L=LANES[S.lane];
+  const rows={controls:[],data:[],capacity:[],systems:[]};
+  S.questions.forEach(q=>{
+    if(!q.pillar) return;
+    const a=S.answers[q.id]; if(!a || typeof a.s!=="number") return;
+    rows[q.pillar].push({q, a, s:a.s});
+  });
+  const pillars=PILLAR_ORDER.map(k=>{
+    const rs=rows[k];
+    const sc= rs.length ? rs.reduce((x,r)=>x+r.s,0)/rs.length : 5;
+    return {key:k, name:L.pillars[k].n, def:L.pillars[k].d, lo:L.pillars[k].lo, hi:L.pillars[k].hi, score:sc, rows:rs};
+  });
+  const weak=pillars.reduce((a,b)=>b.score<a.score?b:a);
+  const avg=pillars.reduce((x,p)=>x+p.score,0)/4;
+  const band = weak.score>=7?BANDS[0] : weak.score>=4?BANDS[1] : BANDS[2];
+
+  /* gaps: every scored answer under 6.5, worst first */
+  const gaps=[];
+  pillars.forEach(p=>p.rows.forEach(r=>{
+    if(r.s<6.5) gaps.push({q:r.q, a:r.a, s:r.s, pillar:p});
+  }));
+  gaps.sort((a,b)=>a.s-b.s);
+
+  return Object.assign({pillars,weak,avg,band,gaps,L}, {cost:costModel()});
+}
+
+function costModel(){
+  const g=id=>S.answers[id];
+  const vol=g("volume"), rate=g("exrate"), mins=g("minutes"), hr=g("hourly");
+  const typedVol=parseFloat(String(S.own.volume||"").replace(/[^0-9.]/g,""));
+  const out={ok:false, unmeasured:[], vol, rate, mins, hr, typedVol:isFinite(typedVol)&&typedVol>0?typedVol:null};
+
+  if(!vol&&!out.typedVol) out.unmeasured.push("volume");
+  if(!rate||rate.unmeasured) out.unmeasured.push("rate");
+  if(!mins) out.unmeasured.push("mins");
+  if(!hr||hr.unmeasured) out.unmeasured.push("hourly");
+
+  out.volLo = out.typedVol || (vol?vol.lo:0);
+  out.volHi = out.typedVol || (vol?vol.hi:0);
+  if(out.unmeasured.length) return out;
+
+  out.lo = out.volLo * rate.lo * (mins.lo/60) * hr.lo;
+  out.hi = out.volHi * rate.hi * (mins.hi/60) * hr.hi;
+  out.mid=(out.lo+out.hi)/2;
+  out.hrsLo = out.volLo*rate.lo*(mins.lo/60);
+  out.hrsHi = out.volHi*rate.hi*(mins.hi/60);
+  out.hrsMid=(out.hrsLo+out.hrsHi)/2;
+  out.year=out.mid*12;
+  const spreads=[
+    {n:`how many you handle a month, where you tapped “${vol&&!out.typedVol?vol.t:"a typed figure"}”`, r: out.typedVol?1:(out.volHi/out.volLo)},
+    {n:`what share need a person, where you tapped “${rate.t}”`, r: rate.hi/rate.lo},
+    {n:`how long one takes, where you tapped “${mins.t}”`, r: mins.hi/mins.lo},
+    {n:`what an hour of the team costs, where you tapped “${hr.t}”`, r: hr.hi/hr.lo}
+  ].sort((a,b)=>b.r-a.r);
+  out.widest=spreads[0].n;
+  out.ok=true;
+  return out;
+}
+
+/* ranking of the four moves */
+function ranking(r){
+  const L=LANES[S.lane];
+  const goalAns=S.answers.goal ? S.answers.goal.t : null;
+  const goalTyped=!goalAns && (S.own.goal||"").trim();
+  const fitPillar = goalAns ? L.goalFit[goalAns] : null;
+  return PILLAR_ORDER.map(k=>{
+    const p=r.pillars.find(x=>x.key===k), m=L.moves[k];
+    const impact=11-p.score;
+    const readiness=r.pillars.filter(x=>x.key!==k).reduce((a,b)=>a+b.score,0)/3;
+    const speed=m.speed;
+    const fit = goalTyped ? 7 : (fitPillar===k ? 9 : 6);
+    const fitWhy = goalTyped ? "your goal was typed rather than tapped, so we do not guess which area it points at; every move gets a neutral 7"
+      : (fitPillar===k ? "directly serves the outcome you chose" : "adjacent to the outcome you chose");
+    const total=impact*0.35+readiness*0.25+speed*0.20+fit*0.20;
+    return {key:k, pillar:p, move:m, impact, readiness, speed, fit, fitWhy, total};
+  }).sort((a,b)=>b.total-a.total);
+}
+
+function bandOfScore(s){
+  return s>=8?"Exceptional fit": s>=6.5?"Strong candidate": s>=5?"Viable with preparation":"Not yet";
+}
+function riskOf(s){ return s<4?["high","High"]:s<7?["med","Medium"]:["low","Low"]; }
+
+/* =======================================================================
+   7. REPORT
+   ======================================================================= */
+function renderReport(){
+  const r=score(), L=LANES[S.lane], C=r.cost, rank=ranking(r);
+  const name=`${S.gate.first} ${S.gate.last}`;
+  const roleTxt=(S.answers.role&&S.answers.role.t)||(S.own.role||"finance");
+  const goalTxt=(S.answers.goal&&S.answers.goal.t)||(S.own.goal||"").trim()||"the outcome you named";
+  const industry=(S.answers.industry&&S.answers.industry.t)||(S.own.industry||"your sector");
+  const erp=(S.answers.erp&&S.answers.erp.t)||(S.own.erp||"your finance stack");
+  const weakName=r.weak.name;
+
+  /* ---------- Part 1 ---------- */
+  const scaleStrip = BANDS.map(b=>`
+    <div class="band ${b.k===r.band.k?"you":""}">
+      <div class="bn">${b.n}</div><div class="br">${b.r}</div>
+      <div class="bm">${b.m}</div>
+      ${b.k===r.band.k?`<span class="youmark">YOU ARE HERE · ${one(r.weak.score)}</span>`:""}
+    </div>`).join("");
+
+  const nextBand = r.band.k==="exposed"?BANDS[1] : r.band.k==="leaking"?BANDS[0] : null;
+  const distance = nextBand ? (nextBand.k==="contained"?7:4) - r.weak.score : 0;
+
+  const ladder = BANDS.map(b=>{
+    const you=b.k===r.band.k;
+    return `<div class="rung ${you?"you":""}">
+      <div class="rt"><span class="rn">${b.n}</span><span class="rr">${b.r}</span></div>
+      <p>${b.who}</p>
+      ${you?`<p style="color:#9FE9F7"><b>You are here at ${one(r.weak.score)} of 10 on ${esc(weakName)}.</b>${
+        nextBand?` The next rung up is ${nextBand.n}. You are ${one(distance)} points on ${esc(weakName)} from it.`:" There is no rung above this one."}</p>`:""}
+    </div>`;
+  }).join("");
+
+  const pillarsHTML = r.pillars.map(p=>{
+    const weak=p.key===r.weak.key;
+    const rows=p.rows.map(row=>{
+      const typed=(S.own[row.q.id]||"").trim();
+      return `<div class="rowline">
+        <div class="rq">${esc(row.q.q)}
+          <span class="ra">your answer: “${esc(row.a.t)}”${typed?` · you also typed: “${esc(typed)}”`:""}</span></div>
+        <div class="rs">${one(row.s)}</div></div>`;
+    }).join("");
+    return `<div class="pillar reveal">
+      <div class="ph"><span class="pn">${esc(p.name)}${weak?'<span class="weakflag">Weakest</span>':""}</span>
+        <span class="psc">${one(p.score)} of 10</span></div>
+      <p class="pdef">${esc(p.def)}</p>
+      <div class="bar"><div class="typical"></div>
+        <div class="fill" data-w="${(p.score*10).toFixed(1)}"></div>
+        <div class="youtag" data-l="${(p.score*10).toFixed(1)}">YOU · ${one(p.score)}</div></div>
+      <div class="anchors">
+        <div class="anchor"><b>1 looks like:</b> ${esc(p.lo)}</div>
+        <div class="anchor"><b>10 looks like:</b> ${esc(p.hi)}</div>
+      </div>
+      ${rows}
+      <div class="howrow">How to read this: each row above is one answer you tapped, scored 1 to 10 against those anchors. The area score is their average. The shaded band on the bar marks 4 to 7, a stated benchmark for where most finance teams land, printed for comparison rather than measured from your peers.</div>
+    </div>`;
+  }).join("");
+
+  const isPain = r.weak.score<=5;
+  const painBlock=`<div class="pkblock reveal">
+    <h4>Is this costing you now, or is it insurance for later?</h4>
+    <ul>
+      <li><b>Painkiller:</b> an active weakness spending money or hours every month. Fixing it removes a cost you are already paying.</li>
+      <li><b>Vitamin:</b> nothing is failing. The work strengthens a position that already holds. Insurance for later.</li>
+    </ul>
+    <div class="rule"><b>The printed rule:</b> a weakest area of 5 or below is a painkiller, above 5 is a vitamin.
+      Yours is a <b>${isPain?"painkiller":"vitamin"}</b>: ${esc(weakName)} sits at ${one(r.weak.score)},
+      ${isPain?`so the cost in Part 2 is being spent now, not someday.`:`so the cost in Part 2 is a position worth protecting rather than a fire to put out.`}</div>
+  </div>`;
+
+  const costTile = C.ok
+    ? `<div class="tile"><div class="tl">Cost of manual handling</div><div class="tv">${money(C.mid)}<span style="font-size:14px;font-weight:600;color:var(--muted)"> / month</span></div>
+        <div class="th">Midpoint of the range in Part 2. Your figures, not ours.</div></div>`
+    : `<div class="tile"><div class="tl">Cost of manual handling</div><div class="tv" style="font-size:19px">Not computed</div>
+        <div class="th">You told us one of the inputs is not measured. We will not invent it. Part 2 shows what it would take.</div></div>`;
+
+  const fifteen=`<div class="fifteen reveal">
+    <div class="eyebrow" style="margin:0 0 4px">Your read in 15 seconds</div>
+    <ul>
+      <li><span class="a">→</span><span>${C.ok
+        ? `Manual ${LANES[S.lane].costLabel} is costing you an estimated <b>${money(C.mid)} a month</b>, from your own figures, inside a range of ${money(C.lo)} to ${money(C.hi)}. The arithmetic is printed in Part 2.`
+        : `The monthly cost cannot be computed, because you told us one of the inputs is not measured. Part 2 shows exactly which one and what it would take. We will not invent it.`}</span></li>
+      <li><span class="a">→</span><span>Your weakest of four areas is <b>${esc(weakName)} at ${one(r.weak.score)} of 10</b>, which puts you in <b>${r.band.n}</b>: ${r.band.m.toLowerCase()}</span></li>
+      <li><span class="a">→</span><span>This is a <b>${isPain?"painkiller":"vitamin"}</b>: ${isPain?"it is costing you now, not insurance for later":"nothing is failing, so this strengthens a position that already holds"}. Both terms are defined under the ladder.</span></li>
+      <li><span class="a">→</span><span><b>${r.gaps.length} gap${r.gaps.length===1?"":"s"} found.</b> Every one is named, explained and given an owning module in Part 4, worst first.</span></li>
+      <li><span class="a">→</span><span>Everything below is built around your stated goal: <b>${esc(goalTxt)}</b></span></li>
+    </ul></div>`;
+
+  const part1=`
+  <section class="part" id="p1">
+    <span class="partlabel">Part 1</span>
+    <h2>The read</h2>
+    <p class="lede">Scored 1 to 10 from the answers you tapped, across four areas. The verdict follows your weakest area, never the average, because a back office is only as sound as its weakest control. That is where the work starts.</p>
+    ${fifteen}
+    <div class="banner reveal">
+      <div class="eyebrow" style="margin:0 0 6px">Verdict</div>
+      <div class="vword grad">${r.band.n}</div>
+      <div class="vmean"><b>${r.band.n}, ${r.band.r}:</b> ${r.band.m}</div>
+      <div class="vset">Set by your weakest area, ${esc(weakName)} at ${one(r.weak.score)} of 10, never your average. All three bands are shown below with what each one means.</div>
+      <div class="scalestrip">${scaleStrip}</div>
+    </div>
+    <div class="tiles">
+      ${costTile}
+      <div class="tile"><div class="tl">Back office control score</div><div class="tv">${Math.round(r.avg*10)}%</div>
+        <div class="th">The average of your four area scores. 100% does not exist; 70% or above is strong.</div></div>
+      <div class="tile"><div class="tl">Weakest area</div><div class="tv" style="font-size:19px">${esc(weakName)}</div>
+        <div class="th">At ${one(r.weak.score)} of 10. It sets the verdict and the first move.</div></div>
+      <div class="tile"><div class="tl">Gaps found</div><div class="tv">${r.gaps.length}</div>
+        <div class="th">Answers scoring under 6.5 of 10. Each is named and fixed in Part 4.</div></div>
+      <div class="tile"><div class="tl">Your stack</div><div class="tv" style="font-size:19px">${esc(erp)}</div>
+        <div class="th">Where the work would plug in. Auditoria runs inside the ERP, not beside it.</div></div>
+    </div>
+
+    <div class="sechead">Where you sit: the scale, and your place on it</div>
+    <p class="unitline">Three bands, set by your weakest area: Contained is 7 or above · Leaking is 4 to 7 · Exposed is under 4. A 10 does not exist; the gap to 10 is the control gap the plan closes. This ladder adds what the strip above does not carry: the full description of each band, and your distance to the next rung up.</p>
+    <div class="ladder">${ladder}</div>
+
+    <div class="sechead">Four areas, each scored from your answers</div>
+    <p class="unitline">Each runs 1 to 10 and states what a 1 and a 10 look like, so you have something to compare against. Under each area, every answer that fed it is shown as its own scored row, so nothing is averaged out of sight. The control score card above is simply the four area average.</p>
+    ${pillarsHTML}
+    ${painBlock}
+
+    <div class="firstmove reveal">
+      <div class="fl">Your first move</div>
+      <h3>${esc(rank[0].move.n)}</h3>
+      <p style="margin:0">${rank[0].key===r.weak.key
+        ? `Your weakest area is ${esc(weakName)} at ${one(r.weak.score)} of 10, and the ranking in Part 4 points at the same place. One contained piece of work, measured against the Part 2 figures before anything larger is committed.`
+        : `Your weakest area is ${esc(weakName)} at ${one(r.weak.score)} of 10, but the first move attacks ${esc(rank[0].pillar.name)} instead. That is deliberate, not a slip: the ranking weights your stated goal at 20% of the score, and this move serves “${esc(goalTxt)}” directly while ${esc(weakName)} does not. ${esc(weakName)} is not dropped, it is phase ${rank.findIndex(m=>m.key===r.weak.key)+1}.`}
+        The arithmetic behind that ranking is printed in Part 4, with all four moves scored and shown.</p>
+    </div>
+  </section>`;
+
+  /* ---------- Part 2 ---------- */
+  let part2;
+  if(C.ok){
+    const volLine = C.typedVol
+      ? `we asked how many ${L.things} you handle a month · you typed “${esc(S.own.volume)}” · read as ${num(C.typedVol)} a month, taken from your own words`
+      : `we asked how many ${L.things} you handle a month · you answered “${esc(C.vol.t)}” · read as ${num(C.volLo)} to ${num(C.volHi)} a month`;
+    const placeholders=[C.vol&&C.vol.placeholder, C.rate&&C.rate.placeholder, C.hr&&C.hr.placeholder].filter(Boolean);
+    part2=`
+    <section class="part" id="p2">
+      <span class="partlabel">Part 2</span>
+      <h2>The cost</h2>
+      <p class="lede">What manual ${esc(L.costLabel)} costs you every month. Every figure here is computed from four numbers you gave us, never invented, and the arithmetic is printed rather than hidden.</p>
+
+      <div class="working reveal">
+        <div class="eyebrow" style="margin:0 0 8px">The number, and exactly where it came from</div>
+        <ul>
+          <li>${volLine}</li>
+          <li>we asked what share of those need a person · you answered “${esc(C.rate.t)}” · read as ${(C.rate.lo*100)}% to ${(C.rate.hi*100)}%</li>
+          <li>we asked how long one takes end to end · you answered “${esc(C.mins.t)}” · read as ${C.mins.lo} to ${C.mins.hi} minutes</li>
+          <li>we asked what an hour of that team costs · you answered “${esc(C.hr.t)}” · read as ${CUR.sym}${C.hr.lo} to ${CUR.sym}${C.hr.hi} an hour</li>
+          <li><span class="eq">Low end:</span> ${num(C.volLo)} × ${(C.rate.lo*100)}% × ${C.mins.lo} minutes ÷ 60 × ${CUR.sym}${C.hr.lo} = <span class="eq">${money(C.lo)} a month</span></li>
+          <li><span class="eq">High end:</span> ${num(C.volHi)} × ${(C.rate.hi*100)}% × ${C.mins.hi} minutes ÷ 60 × ${CUR.sym}${C.hr.hi} = <span class="eq">${money(C.hi)} a month</span></li>
+        </ul>
+        <p class="tiny" style="margin-top:12px">Est. means estimate: your figures, our arithmetic, no guarantees. This is the handling time alone. It is before the cost of anything that goes wrong while the exception is waiting, and before late payment charges, missed discounts or the cash sitting still.
+        ${placeholders.length?`<br><br><b>On the open ended bands you picked:</b> ${placeholders.join("; ")}. Replace them with your own figures and the arithmetic above still works line for line.`:""}</p>
+      </div>
+
+      <div class="warnbox reveal" style="border-color:rgba(139,92,246,.45);background:rgba(139,92,246,.09);color:#DBD6F6">
+        <b>Why the range is wide, and which answer made it wide.</b> The low end takes the bottom of all four bands you tapped at once, and the high end takes the top of all four at once. Both are possible from what you told us and neither is likely, which is why the midpoint is the figure the rest of this report uses. The widest single band you picked was <b>${esc(C.widest)}</b>. Replace that one with your actual figure and the range narrows immediately.
+      </div>
+
+      <div class="tiles">
+        <div class="tile"><div class="tl">Manual handling cost, per month</div><div class="tv">${money(C.mid)}</div>
+          <div class="th">The midpoint of your range. This is the figure both charts in Part 5 start from.</div></div>
+        <div class="tile"><div class="tl">The range behind that midpoint</div><div class="tv" style="font-size:20px">${money(C.lo)} to ${money(C.hi)}</div>
+          <div class="th">All four bands at their lowest, then all four at their highest (est., from your own figures).</div></div>
+        <div class="tile"><div class="tl">Hours a month, on this alone</div><div class="tv">${num(C.hrsMid)} hrs</div>
+          <div class="th">Between ${num(C.hrsLo)} and ${num(C.hrsHi)} hours of your team's time, from the same four figures.</div></div>
+        <div class="tile"><div class="tl">Over twelve months</div><div class="tv">${money(C.year)}</div>
+          <div class="th">The midpoint spent twelve times, if nothing changes.</div></div>
+      </div>
+    </section>`;
+  } else {
+    const F={
+      volume:{lab:`how many ${L.things} you handle a month`, mid:C.typedVol||(C.vol?(C.vol.lo+C.vol.hi)/2:null), stand:5000, vary:[1000,5000,25000], fmt:v=>num(v)+" a month"},
+      rate:{lab:"what share of those need a person", mid:(C.rate&&!C.rate.unmeasured)?(C.rate.lo+C.rate.hi)/2:null, stand:.25, vary:[.10,.25,.50], fmt:v=>Math.round(v*100)+" in every 100"},
+      mins:{lab:"how long one of those takes end to end", mid:C.mins?(C.mins.lo+C.mins.hi)/2:null, stand:30, vary:[10,30,60], fmt:v=>Math.round(v)+" minutes"},
+      hourly:{lab:"what an hour of that team's time costs", mid:(C.hr&&!C.hr.unmeasured)?(C.hr.lo+C.hr.hi)/2:null, stand:40, vary:[25,40,60], fmt:v=>CUR.sym+Math.round(v)+" an hour"}
+    };
+    const missKeys=C.unmeasured, primary=missKeys[0];
+    const val=k=>F[k].mid!=null?F[k].mid:F[k].stand;
+    const rows=F[primary].vary.map(v=>{
+      const V={volume:val("volume"),rate:val("rate"),mins:val("mins"),hourly:val("hourly")};
+      V[primary]=v;
+      const cost=V.volume*V.rate*(V.mins/60)*V.hourly;
+      return `<li>At <b>${F[primary].fmt(v)}</b>: ${num(V.volume)} × ${Math.round(V.rate*100)}% × ${Math.round(V.mins)} minutes ÷ 60 × ${CUR.sym}${Math.round(V.hourly)} = <span class="eq">${money(cost)} a month</span></li>`;
+    }).join("");
+    const others=missKeys.slice(1);
+    part2=`
+    <section class="part" id="p2">
+      <span class="partlabel">Part 2</span>
+      <h2>The cost</h2>
+      <p class="lede">This is where your monthly number normally sits. It is not here, and that is deliberate.</p>
+      <div class="warnbox reveal">
+        <b>You told us this is not measured:</b> ${esc(missKeys.map(k=>F[k].lab).join(", and "))}. We will not print a figure as though it were yours.
+        Not measuring it is itself a finding, and it is part of why Systems and Visibility carries the weight it does in Part 1.
+      </div>
+      <div class="working reveal">
+        <div class="eyebrow" style="margin:0 0 8px">The arithmetic, with the missing figure left open</div>
+        <p class="small muted" style="margin:0 0 10px">The formula is the same one every other report in this series uses: ${esc(L.things)} a month × the share needing a person × minutes each ÷ 60 × the cost of an hour. The three rows below vary <b>${esc(F[primary].lab)}</b> across three stated values, so you can find your own row rather than be handed a number you did not give us. The figures you <i>did</i> give us appear in every row at the middle of the band you tapped.</p>
+        <ul>${rows}</ul>
+        <p class="tiny" style="margin-top:12px">
+          Those three values are illustrative, printed so the arithmetic can be shown. They are not your figures and they are not treated as yours anywhere else in this report.
+          ${others.length?`The other figure we do not have, ${esc(others.map(k=>F[k].lab).join(" and "))}, is held at ${esc(others.map(k=>F[k].fmt(F[k].stand)).join(" and "))} in every row above for the same reason: illustrative, replace with your own.`:""}
+          Everything you did give us is used exactly as you gave it. The moment you measure the missing figure, one of these rows becomes your number and the rest of the report works from it.
+        </p>
+      </div>
+      <div class="tiles">
+        <div class="tile"><div class="tl">Your monthly cost</div><div class="tv" style="font-size:20px">Not computed</div>
+          <div class="th">One input is unmeasured, so there is no honest figure to print. The rows above show what it would be at three stated values.</div></div>
+        <div class="tile"><div class="tl">What would unlock it</div><div class="tv" style="font-size:17px">${esc(F[primary].lab)}</div>
+          <div class="th">One number. Every other input for the calculation is already in this report.</div></div>
+        <div class="tile"><div class="tl">Effect on the rest of the report</div><div class="tv" style="font-size:17px">Charts held back</div>
+          <div class="th">Part 5 keeps its phases and its plan. The two money charts do not appear, because there is no figure of yours to draw them from.</div></div>
+      </div>
+    </section>`;
+  }
+
+  /* ---------- Part 3 ---------- */
+  const sortedRows=[];
+  r.pillars.forEach(p=>p.rows.forEach(row=>sortedRows.push({p,row})));
+  sortedRows.sort((a,b)=>a.row.s-b.row.s);
+  const b1=sortedRows[0], b2=sortedRows[1];
+  const checks=PILLAR_ORDER.map(k=>{
+    const p=r.pillars.find(x=>x.key===k), c=CHECKS[S.lane][k], [cls,lbl]=riskOf(p.score);
+    return `<div class="check reveal">
+      <div class="ck">${esc(c.k)}</div>
+      <h3>${esc(c.h)}</h3>
+      <p>${esc(c.p)}</p>
+      <span class="riskpill ${cls}">${lbl} risk <span class="rsc">· ${esc(p.name)} ${one(p.score)}</span></span>
+    </div>`;
+  }).join("");
+
+  const part3=`
+  <section class="part" id="p3">
+    <span class="partlabel">Part 3</span>
+    <h2>The exposure</h2>
+    <p class="lede">Two things, both at <b>area level</b>: first the blind spot, then one check for each of the four areas. The individual gaps are not listed here. They appear once, in Part 4, at answer level, each with its fix and the module that owns it. Naming them twice would be repetition however it was framed.</p>
+
+    <div class="blind reveal">
+      <div class="eyebrow" style="margin:0 0 6px">The blind spot</div>
+      <h3 style="font-size:22px;margin-bottom:8px">The one thing you are not seeing</h3>
+      <p class="small muted" style="margin:0">Every report names one risk the reader did not raise themselves, computed by crossing your two lowest scoring answers. This is yours.</p>
+      <ol>
+        <li><b>Answer one.</b> We asked ${esc(b1.row.q.q)} and you answered “${esc(b1.row.a.t)}”. That answer creates the exposure, and at ${one(b1.row.s)} of 10 it is the lowest scoring thing you told us.</li>
+        <li><b>Answer two.</b> We asked ${esc(b2.row.q.q)} and you answered “${esc(b2.row.a.t)}”, scoring ${one(b2.row.s)}. That answer removes what would normally catch it.</li>
+        <li><b>Both surface at once.</b> ${esc(b1.row.q.hurts.split(".")[0])}, and there is nothing behind it, because ${esc(b2.row.q.hurts.split(".")[0].toLowerCase())}. That combination, not either answer alone, is the thing to fix first.</li>
+      </ol>
+    </div>
+
+    <div class="sechead">Four checks, one for each area</div>
+    <p class="unitline">These are area level, not answer level. Every area gets one, so nothing is skipped and nothing is singled out. Part 4 then drops to answer level.</p>
+    <div class="checkgrid">${checks}</div>
+    <div class="printrule"><b>The printed rule for all four:</b> the area score sets the risk. Under 4 is High · 4 to 7 is Medium · 7 or above is Low.</div>
+  </section>`;
+
+  /* ---------- Part 4 ---------- */
+  const usedMods=new Set(r.gaps.map(g=>modOf(g)));
+  rank.forEach(m=>usedMods.add(m.move.mod));
+  const modLegend=Array.from(usedMods).map(k=>`<div class="mod"><div class="mn">${MODULES[k].n}</div><p>${MODULES[k].d}</p></div>`).join("");
+
+  const gapCards = r.gaps.map(g=>{
+    const mk=modOf(g), M=MODULES[mk];
+    const fix=fixOf(g);
+    const [cls,lbl]=g.s<4?["high","High"]:["med","Medium"];
+    const typed=(S.own[g.q.id]||"").trim();
+    return `<div class="gapcard reveal">
+      <div class="side">
+        <div class="sl">You told us</div>
+        <div class="quote">“${esc(g.a.t)}”</div>
+        <div class="meta">In answer to: ${esc(g.q.q)}</div>
+        <div class="meta">Flagged in: ${esc(g.pillar.name)} · answer scored ${one(g.s)} of 10 · <span class="riskpill ${cls}" style="padding:2px 9px;font-size:11px">${lbl}</span></div>
+        ${typed?`<div class="meta">You also typed: “${esc(typed)}”</div>`:""}
+        <div class="why"><b>Why it hurts:</b> ${esc(g.q.hurts)}</div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="side">
+        <div class="sl">The fix, and the module that owns it</div>
+        <span class="modpill">${M.n}</span>
+        <div class="why" style="margin-top:0">${M.n} takes “${esc(g.a.t)}” and ${esc(fix.what)}</div>
+        <div class="good"><b>What good looks like:</b> ${esc(fix.good)}</div>
+      </div>
+    </div>`;
+  }).join("");
+
+  const rankHTML = rank.map((m,i)=>{
+    const dest = i<3 ? `becomes phase ${i+1}` : "follows the 90 days";
+    return `<div class="rank reveal">
+      <div class="rh"><span class="rname">${i+1}. ${esc(m.move.n)}</span><span class="rscore">${one(m.total)} / 10</span></div>
+      <div class="rband">${bandOfScore(m.total)} · ${MODULES[m.move.mod].n} · <span class="dest">${dest}</span></div>
+      <div class="maths">
+        Impact ${one(m.impact)} (11 − the ${esc(m.pillar.name)} score of ${one(m.pillar.score)}) ·
+        Readiness ${one(m.readiness)} (the average of your other three areas) ·
+        Speed ${m.speed} (${esc(m.move.speedWhy)}) ·
+        Fit ${m.fit} (${esc(m.fitWhy)})<br>
+        <span class="w">Weighted: (${one(m.impact)}×0.35) + (${one(m.readiness)}×0.25) + (${m.speed}×0.20) + (${m.fit}×0.20) = ${one(m.total)}</span>
+      </div>
+      <p class="why">${esc(m.move.why)}</p>
+    </div>`;
+  }).join("");
+
+  const part4=`
+  <section class="part" id="p4">
+    <span class="partlabel">Part 4</span>
+    <h2>The fix map</h2>
+    <p class="lede">This part works at <b>answer level</b>. It is the only place your individual gaps appear. A gap is any answer scoring under 6.5 of 10: under 4 is High severity, 4 to 6.5 is Medium. Each one is listed once, worst first, in the same format as every other, with what you said, why it hurts, the Auditoria module accountable for it and what good looks like. No gap gets a shorter version than another: if it was worth flagging, it is worth naming the fix and the owner. No prices for Auditoria work appear anywhere in this report.</p>
+
+    <div class="sechead">The modules doing the work</div>
+    <p class="unitline">Every fix below names one of these, so accountability is never vague.</p>
+    <div class="modgrid">${modLegend}</div>
+
+    <div class="sechead">Every gap, in your words, matched to the module accountable for it</div>
+    <p class="unitline">Ordered worst first, by the score of the answer behind each one. ${r.gaps.length} in total.</p>
+    ${gapCards || `<div class="card">No answer scored under 6.5, so there is no gap list. That is a real result, not an empty section: the plan in Part 5 is about protecting the position rather than repairing it.</div>`}
+
+    <div class="sechead">Where to start: the ranking, and the maths behind it</div>
+    <p class="unitline">One move first, because doing everything at once stalls. There is one candidate move per area, four in all, and every one is scored and shown rather than only the winners. Scored out of 10: impact 35, readiness 25, speed 20, fit 20. Bands: 8 or above Exceptional fit · 6.5 to 8 Strong candidate · 5 to 6.5 Viable with preparation · under 5 Not yet. Provenance: impact is 11 minus the Part 1 score of the area each move attacks, so a weaker area means a bigger impact; readiness is the average of your other three areas, meaning what you already bring to it; speed is the typical size of the work and is the one input not taken from your answers, stated per item; fit is 9 when the move directly serves the goal you chose, otherwise 6.</p>
+    ${rankHTML}
+  </section>`;
+
+  /* ---------- Part 5 ---------- */
+  const mid = C.ok?C.mid:0;
+  const phases=[
+    {n:"Prove it", w:"Weeks 1 to 2", pct:.15},
+    {n:"Stabilise", w:"Weeks 3 to 6", pct:.35},
+    {n:"Compound", w:"Weeks 7 to 13", pct:.55}
+  ].map((ph,i)=>Object.assign(ph,{m:rank[i]}));
+
+  const stateToday=L.stateKeys.map(k=>{
+    const q=S.questions.find(x=>x.id===k), a=S.answers[k];
+    if(!q||!a) return "";
+    return `<div class="item"><div class="k">${esc(shortLabel(q))}</div><div class="v">${esc(a.t)}</div></div>`;
+  }).join("");
+
+  const stateFuture=phases.map(ph=>
+    `<div class="item"><div class="k">${esc(ph.n)}</div><div class="v">${esc(ph.m.move.n)}, delivered by ${MODULES[ph.m.move.mod].n}</div></div>`
+  ).join("") + `<div class="item"><div class="k">Measurement</div><div class="v">The Part 2 figures re run, so the change is measured rather than claimed</div></div>`;
+
+  const phaseCards=phases.map(ph=>`
+    <div class="phase reveal">
+      <div class="pt"><span class="pname">${esc(ph.n)}</span><span class="pweeks">${esc(ph.w)}</span></div>
+      <h3>${esc(ph.m.move.n)}</h3>
+      <div class="owner">Delivered by: ${MODULES[ph.m.move.mod].n}</div>
+      <p style="margin:0;color:#CFCAE8;font-size:14.5px">${esc(ph.m.move.why)}</p>
+      ${C.ok?`<div class="rec">Cumulative monthly cost removed by the end of this phase: about ${ph.pct*100}% of the Part 2 midpoint, roughly <b>${money(mid*ph.pct)} a month</b> (est., from your own figures, under the stated assumption below the charts).</div>`:""}
+    </div>`).join("");
+
+  let charts="";
+  if(C.ok){
+    const monthly=[];
+    for(let m=1;m<=12;m++){ const pct = m===1?.15 : m<=3?.35 : .55; monthly.push(mid*pct); }
+    let cum=0; const cumRec=monthly.map(v=>(cum+=v));
+    const cumCost=[]; for(let m=1;m<=12;m++) cumCost.push(mid*m);
+    const yearRec=cumRec[11], yearCost=cumCost[11];
+    charts=`
+    <div class="chartbox reveal">
+      <h4>The fast clock: money back, starting month one</h4>
+      <p class="how">Two lines over twelve months. The rising blue line is what the phases give back, cumulatively. The rising red line is what doing nothing costs you, cumulatively. Worked example in your figures: by month one the phases return about 15% of ${money(mid)}, which is ${money(monthly[0])}, while doing nothing has already cost the full ${money(mid)}. Higher is better on the blue line and worse on the red.</p>
+      <div class="legend"><span><i style="background:#22D3EE"></i>Cumulative recovered</span><span><i style="background:#FB7185"></i>Cumulative cost of doing nothing</span></div>
+      ${lineChart([{d:cumRec,c:"#22D3EE"},{d:cumCost,c:"#FB7185"}], 12, v=>money(v))}
+      <div class="moneystrip">
+        <div class="m"><div class="ml">First money back, day 30</div><div class="mv">${money(monthly[0])}</div><div class="mh">15% of your monthly midpoint, as phase one lands.</div></div>
+        <div class="m"><div class="ml">Run rate from day 90</div><div class="mv">${money(mid*.55)}<span style="font-size:13px;color:var(--muted)"> / month</span></div><div class="mh">55% of your monthly midpoint, once all three phases are in.</div></div>
+        <div class="m"><div class="ml">Recovered in year one</div><div class="mv">${money(yearRec)}</div><div class="mh">The blue line at month twelve.</div></div>
+        <div class="m"><div class="ml">Year one cost of doing nothing</div><div class="mv">${money(yearCost)}</div><div class="mh">Your monthly midpoint, spent twelve times.</div></div>
+      </div>
+      <div class="driver">This chart's driver is the three phases above: the blue line rises because phase one lands in month one, phase two by month three and phase three by month four. The 15 / 35 / 55% shares are stated planning assumptions, conservative and cumulative, not Auditoria claims. They exist so the lines can be drawn, and they are replaced by measured milestones in a live engagement. The starting figure is yours.</div>
+    </div>
+
+    <div class="chartbox reveal">
+      <h4>The second clock: what you are still spending each month</h4>
+      <p class="how">The same three phases seen the other way round. The line starts at your Part 2 midpoint of ${money(mid)} a month and falls as each phase lands. Worked example: day 90 = ${money(mid)} × (1 − 55%) = ${money(mid*.45)} still going out every month. Each dot is a milestone, and lower is better.</p>
+      <div class="legend"><span><i style="background:#8B5CF6"></i>Monthly cost still being spent</span></div>
+      ${lineChart([{d:[mid,mid*.85,mid*.65,mid*.45],c:"#8B5CF6"}], 4, v=>money(v), ["Today","Day 30","Day 60","Day 90"])}
+      <div class="driver">This line's driver is the three phases above: each drop IS a phase landing. The gap between the first dot and the last is what the plan protects every month from then on.</div>
+    </div>`;
+  }
+
+  const part5=`
+  <section class="part" id="p5">
+    <span class="partlabel">Part 5</span>
+    <h2>The plan</h2>
+    <p class="lede">One move first, then 90 days sequenced. The first move takes the biggest bite, and every phase is filtered through the outcome you said you want.</p>
+
+    <div class="goalcard reveal">
+      <div class="eyebrow" style="margin:0 0 4px">Your 12 month goal, in your words</div>
+      <div class="g">“${esc(goalTxt)}”</div>
+      <p class="small muted" style="margin:0">We asked what one outcome you most want in the next 12 months. If a step below does not serve this, it did not make the plan.</p>
+    </div>
+
+    <div class="states">
+      <div class="state today">
+        <div class="sh">Today · current state</div>
+        ${stateToday}
+        <div class="onesent">In one sentence: the process works because people carry it, and ${C.ok?`that carrying costs about ${money(mid)} a month`:`nobody has priced what that carrying costs`}, whether or not anyone is measuring it.</div>
+      </div>
+      <div class="state future">
+        <div class="sh">Day 90 · future state</div>
+        ${stateFuture}
+        <div class="onesent">In one sentence: by day 90 the three weakest points have an owner, a rule and a module behind them, and the change is measurable against the numbers you gave in Part 2.</div>
+      </div>
+    </div>
+
+    <div class="sechead">Your first 90 days: three phases, each with a named owner</div>
+    ${phaseCards}
+    ${charts}
+
+    <div class="firstmove reveal" style="margin-top:22px">
+      <div class="fl">Start small, stack wins</div>
+      <h3>One process, two weeks</h3>
+      <p style="margin:0">The smallest version of phase one: pick the single ${esc(L.thing)} process this report scored worst, and run it against the ${C.ok?money(mid)+" a month":"cost"} you priced yourself in Part 2. Nothing else committed, nothing else changed. Small enough to say yes to this week, real enough to change the number.</p>
+    </div>
+
+    <div class="card reveal" style="margin-top:14px">
+      <div class="eyebrow">Why now</div>
+      <p style="margin:0 0 10px"><b>Why this is within reach:</b> nothing in this plan needs data you do not have. Every figure in it came from four answers you gave in about four minutes, and the work runs inside ${esc(erp)} rather than beside it.</p>
+      <p style="margin:0"><b>Where the return comes from:</b> ${C.ok?`the ${money(mid)} a month you priced yourself in Part 2, recovered as the phases land, plus the exposure in Part 3 closing rather than compounding`:`the exposure in Part 3 closing rather than compounding, and a monthly figure you can finally measure`}. Estimates, from your own figures, never invented.</p>
+    </div>
+  </section>`;
+
+  /* ---------- Part 6 ---------- */
+  const receipts=S.questions.map(q=>{
+    const a=S.answers[q.id], typed=(S.own[q.id]||"").trim();
+    if(!a && !typed) return "";
+    const went = q.kind==="lens" ? `Set the lens the report is written for${q.id==="erp"?", and named where the work would plug in":q.id==="industry"?", and shaped the risk checks in Part 3":""}.`
+      : q.kind==="goal" ? "Quoted at the top of Part 5. Every phase is filtered through it, and it set the fit scores in the Part 4 ranking."
+      : q.kind==="size" && q.pillar ? `Scored ${LANES[S.lane].pillars[q.pillar].n}, and is one of the four figures behind every ${CUR.sym} in Part 2 and both charts in Part 5.`
+      : q.kind==="size" ? `One of the four figures behind every ${CUR.sym} in Part 2 and both charts in Part 5.`
+      : `Scored ${LANES[S.lane].pillars[q.pillar].n}${a && a.s<6.5?", and appears as a gap with its fix in Part 4":", and fed the area check in Part 3"}.`;
+    return `<div class="receipt">
+      <div class="rq2">${a?`“${esc(a.t)}”`:`“${esc(typed)}”`}<span class="tag ${a?"tapped":"typed"}">${a?"TAPPED":"TYPED"}</span>
+        ${a&&typed?`<span class="tag typed">PLUS TYPED</span>`:""}</div>
+      <div class="ia">In answer to: ${esc(q.q)}</div>
+      ${a&&typed?`<div class="ia">You also typed: “${esc(typed)}”</div>`:""}
+      <div class="went">→ ${went}</div>
+    </div>`;
+  }).join("");
+
+  const gl=[
+    ["The six parts","Part 1 reads the back office, Part 2 prices the cost, Part 3 names the exposure at area level, Part 4 maps every gap to the module that closes it at answer level, Part 5 sequences the plan, Part 6 shows the working."],
+    ["Contained","Weakest area 7 or above. The back office is holding, so the work is protecting that position as volume grows."],
+    ["Leaking","Weakest area 4 to 7. One area is quietly costing you every month. Nothing has broken, which is why nobody has priced it."],
+    ["Exposed","Weakest area under 4. An area is weak enough that the next volume spike, audit or bad actor will find it before you do."],
+    ["The four areas","Controls, Data and Matching, Team Capacity, Systems and Visibility. Each scored 1 to 10 from tapped answers, with anchors stating what a 1 and a 10 look like, and every feeding answer shown as its own row."],
+    ["Back office control score","The average of your four area scores, shown as a percentage. It answers one question: how much of this process runs without a person holding it up."],
+    ["Painkiller or vitamin","Whether this is costing you now or is insurance for later. The printed rule: a weakest area of 5 or below is a painkiller."],
+    ["The blind spot","The one risk your answers point at that you did not name yourself, computed by crossing your two lowest scoring answers."],
+    ["Gap","Any answer scoring under 6.5 of 10. Under 4 is High severity, 4 to 6.5 is Medium. Gaps appear once, in Part 4, each with its fix and its owning module. Directional, to prioritise a conversation."],
+    ["Exception","Any "+L.thing+" that stops and waits for a person. The exception rate is the single biggest driver of the number in Part 2."],
+    ["Cost figures","Computed only from the four figures you provided, with the arithmetic printed where they appear. Est. means an estimate from your own numbers. This report never invents money and carries no prices for Auditoria work."],
+    ["Ranking scores","Weighted 35 impact / 25 readiness / 20 speed / 20 fit, out of 10, arithmetic shown per item. A 10 does not exist; the gap to 10 is the control gap the plan closes."],
+    ["The check","The free read that comes before the demo. Auditoria's demo shows you the platform. This check scores what you already have, prices what the gaps cost and names the module that closes each one. It is not a demo and does not replace one."]
+  ].map(([t,p])=>`<div class="gl"><div class="gt">${esc(t)}</div><p>${esc(p)}</p></div>`).join("");
+
+  const part6=`
+  <section class="part" id="p6">
+    <span class="partlabel">Part 6</span>
+    <h2>The receipts</h2>
+    <p class="lede">Every answer changed something in this report. Here is the trace, so you can check the working. <b>If this was forwarded to you:</b> it was generated from a four minute check answered by a colleague, and everything above traces back to these answers. Typed answers shape the wording and never the scores, except a typed figure in Part 2, which becomes the number and says so.</p>
+    ${receipts}
+    <p class="small muted" style="margin-top:18px">Nothing you told us was decorative.</p>
+
+    <div class="sechead">Appendix · how to read this report</div>
+    <p class="unitline">This glossary travels with the report, because it gets forwarded to people who never saw the check.</p>
+    <div class="glossary">${gl}</div>
+  </section>`;
+
+  /* ---------- head, nav, closing ---------- */
+  const walk=[
+    ["Part 1","The read","Your verdict, four areas, where you sit","p1"],
+    ["Part 2","The cost","What manual handling costs, in your figures","p2"],
+    ["Part 3","The exposure","The blind spot, and one check per area","p3"],
+    ["Part 4","The fix map","Every gap matched to the module that closes it","p4"],
+    ["Part 5","The plan","90 days, sequenced around your goal","p5"],
+    ["Part 6","The receipts","Where every answer went","p6"]
+  ].map(([n,t,d,id])=>`<button class="walkitem" data-go="${id}"><div class="wn">${n}</div><div class="wt">${t}</div><div class="wd">${d}</div></button>`).join("");
+
+  const html=`
+  <div class="partnav" id="partnav">
+    ${["p1","p2","p3","p4","p5","p6"].map((id,i)=>`<button data-go="${id}">Part ${i+1} · ${["The read","The cost","The exposure","The fix map","The plan","The receipts"][i]}</button>`).join("")}
+  </div>
+
+  <div class="rhead">
+    <div class="eyebrow">Back office exposure check · ${esc(L.name)} lane</div>
+    <h1 class="grad">${esc(r.band.n)}</h1>
+    <p class="verdictline">Your read is standing on ${esc(weakName)}, at ${one(r.weak.score)} of 10.</p>
+    <p class="small muted" style="margin-top:10px">Prepared for ${esc(name)}, ${esc(roleTxt)} at ${esc(S.gate.company)} · ${esc(industry)} · ${esc(erp)}</p>
+    <div class="card" style="margin-top:16px;padding:15px">
+      <p class="small" style="margin:0" id="savedLine">${API.live
+        ? `<b>Saving.</b> This report is being logged to Auditoria's pipeline.`
+        : `<b>Preview.</b> Nothing here is sent or stored. In the live version this report emails itself to ${esc(S.gate.email)} on unlock and posts the lead to Auditoria's pipeline.`}</p>
+    </div>
+    <div class="explain" style="margin-top:16px">
+      <h4>What this check is, in one line</h4>
+      <p>Auditoria's demo shows you the platform. This check scores what you already have: how much of your ${esc(L.short)} process runs without a person holding it up, what the gaps cost you every month, and which Auditoria module closes each one. It is not a demo and it does not replace one. Every score below comes from an answer you tapped. Every ${CUR.sym} comes from a figure you gave us. Nothing here is invented, and no Auditoria prices appear anywhere in it.</p>
+    </div>
+  </div>
+
+  <div class="walkbox">
+    <div class="eyebrow" style="margin:0 0 4px">Short on time, or going through this with somebody?</div>
+    <div style="font-size:16px;font-weight:650">Six stops, twenty minutes, in the order the conversation actually runs. Nothing is removed, it is just a path through it.</div>
+    <div class="walk">${walk}</div>
+  </div>
+
+  ${part1}${part2}${part3}${part4}${part5}${part6}
+
+  <div class="closing">
+    <div class="costline">${C.ok
+      ? `Every month this waits spends ${money(C.mid)} again, on your own figures.`
+      : `Every month this waits spends a number nobody in the business can currently name.`}</div>
+    <p style="margin:0 0 6px">The next step is a working session, not a sales call: your process on one side of the table, the evidence on the other. Bring the people who own the close and the cash, not just IT. Bring this report.</p>
+    <div class="ctarow">
+      <button class="btn" id="ctaBook">Book the working session</button>
+      <button class="btn ghost" id="ctaDl">Download this report</button>
+      <button class="btn ghost" id="ctaMail">Email me this report</button>
+      <button class="btn ghost" id="ctaWa">Send on WhatsApp</button>
+      <button class="btn ghost" id="ctaAgain">Start again</button>
+    </div>
+    <div class="footnote">
+      <b>Honest by design, even where that costs the sale.</b> Every ${CUR.sym} figure above is computed from numbers you supplied; every score comes from an answer you tapped; unmeasured means unmeasured; and no prices for Auditoria work appear anywhere in this report.
+      <br><br>
+      ${API.live
+        ? (API.email
+          ? `<b>What each button does:</b> Download saves a real copy of this page. Email sends this report to ${esc(S.gate.email)}. WhatsApp opens a share. This report was emailed to you automatically when you unlocked it.`
+          : `<b>What each button does:</b> Download saves a real copy of this page. Email opens a draft, because the mail key is not configured on this deployment yet. WhatsApp opens a share. Your answers were logged when you unlocked this report.`)
+        : `<b>Preview build:</b> Download saves a real copy of this page. Email opens a draft, because live sending is not wired up in a preview. WhatsApp opens a real share. Deployed, the report emails itself on unlock and posts the lead to Auditoria's pipeline.`}
+      <br><br>
+      Auditoria.AI · SmartVendor, SmartCustomer, SmartResearch and Guardian are trademarks of Auditoria.AI Inc. Prepared ${new Date().toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"})} · Built for Auditoria.AI by Navvai.
+    </div>
+  </div>`;
+
+  $("#report").innerHTML=html;
+  wireReport(r,C);
+}
+
+function shortLabel(q){
+  const map={bankchange:"Supplier bank detail changes",nonpo:"Invoices with no purchase order",
+    inquiries:"Supplier and customer inbox load",close:"Month end close",
+    prioritise:"Chasing order",remitform:"How remittances arrive",cashapply:"Time to apply cash"};
+  return map[q.id]||q.q;
+}
+function modOf(g){
+  const f=g.q.fix; if(!f) return "smartvendor";
+  if(S.lane==="receivables" && f.modAR) return f.modAR;
+  return f.mod;
+}
+function fixOf(g){
+  const f=g.q.fix;
+  if(S.lane==="receivables" && f.modAR) return {what:f.whatAR, good:f.goodAR};
+  return {what:f.what, good:f.good};
+}
+
+/* simple animated svg line chart */
+function lineChart(series, n, fmt, labels){
+  const W=740,H=250,pl=68,pr=18,pt=18,pb=34;
+  const all=series.flatMap(s=>s.d);
+  const max=Math.max.apply(null,all)*1.08 || 1;
+  const x=i=>pl+(i/(n-1))*(W-pl-pr);
+  const y=v=>pt+(1-v/max)*(H-pt-pb);
+  const grid=[0,.25,.5,.75,1].map(f=>{
+    const yy=pt+(1-f)*(H-pt-pb);
+    return `<line x1="${pl}" x2="${W-pr}" y1="${yy}" y2="${yy}" stroke="rgba(255,255,255,.09)"/>
+            <text x="${pl-8}" y="${yy+4}" text-anchor="end" fill="#7F7AA0" font-size="11">${fmt(max*f)}</text>`;
+  }).join("");
+  const xlab=(labels||Array.from({length:n},(_,i)=>"M"+(i+1))).map((t,i)=>
+    `<text x="${x(i)}" y="${H-10}" text-anchor="middle" fill="#7F7AA0" font-size="11">${t}</text>`).join("");
+  const paths=series.map((s,si)=>{
+    const d=s.d.map((v,i)=>`${i?"L":"M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+    const dots=s.d.map((v,i)=>`<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="4" fill="${s.c}"><title>${fmt(v)}</title></circle>`).join("");
+    return `<path class="cline" d="${d}" fill="none" stroke="${s.c}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>${dots}`;
+  }).join("");
+  const endLabels=series.map(s=>{
+    const v=s.d[s.d.length-1];
+    return `<text x="${x(n-1)-6}" y="${y(v)-12}" text-anchor="end" fill="${s.c}" font-size="12.5" font-weight="700">${fmt(v)}</text>`;
+  }).join("");
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto" role="img">${grid}${xlab}${paths}${endLabels}</svg>`;
+}
+
+function wireReport(r,C){
+  /* bar fills + reveals */
+  const io=new IntersectionObserver(es=>es.forEach(e=>{
+    if(!e.isIntersecting) return;
+    e.target.classList.add("in");
+    $$(".fill",e.target).forEach(f=>f.style.width=f.dataset.w+"%");
+    $$(".youtag",e.target).forEach(t=>t.style.left=Math.min(94,Math.max(12,+t.dataset.l))+"%");
+    io.unobserve(e.target);
+  }),{threshold:.15});
+  $$(".reveal").forEach(el=>io.observe(el));
+
+  /* animate chart lines */
+  $$(".cline").forEach(p=>{
+    try{ const len=p.getTotalLength();
+      p.style.strokeDasharray=len; p.style.strokeDashoffset=len;
+      p.style.transition="stroke-dashoffset 1.6s ease";
+      setTimeout(()=>{p.style.strokeDashoffset=0;},260);
+    }catch(e){}
+  });
+
+  const go=id=>{ const el=document.getElementById(id); if(el) el.scrollIntoView({behavior:"smooth",block:"start"}); };
+  $$("#partnav button").forEach(b=>b.addEventListener("click",()=>go(b.dataset.go)));
+  $$(".walkitem").forEach(b=>b.addEventListener("click",()=>go(b.dataset.go)));
+
+  /* scroll spy */
+  const secs=["p1","p2","p3","p4","p5","p6"].map(id=>document.getElementById(id));
+  const btns=$$("#partnav button");
+  const spy=new IntersectionObserver(es=>es.forEach(e=>{
+    if(e.isIntersecting){ const i=secs.indexOf(e.target); btns.forEach((b,k)=>b.classList.toggle("on",k===i)); }
+  }),{rootMargin:"-45% 0px -50% 0px"});
+  secs.forEach(s=>s&&spy.observe(s));
+
+  const line = C.ok
+    ? `${r.band.n}. Weakest area ${r.weak.name} at ${one(r.weak.score)} of 10. Manual handling is costing about ${money(C.mid)} a month, from our own figures. First move: ${ranking(r)[0].move.n}.`
+    : `${r.band.n}. Weakest area ${r.weak.name} at ${one(r.weak.score)} of 10. First move: ${ranking(r)[0].move.n}.`;
+
+  $("#ctaBook").addEventListener("click",()=>{
+    track("cta_book");
+    if(API.live) window.open(API.booking,"_blank");
+    else alert("Preview. Deployed, this opens Auditoria's booking page for a working session.");
+  });
+  $("#ctaDl").addEventListener("click",()=>{
+    track("cta_download");
+    const blob=new Blob(["<!doctype html>"+document.documentElement.outerHTML],{type:"text/html"});
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(blob);
+    a.download=`Auditoria-Exposure-Check-${S.gate.company.replace(/\W+/g,"-")}.html`;
+    a.click();
+  });
+  $("#ctaMail").addEventListener("click",e=>{
+    const btn=e.currentTarget;
+    track("cta_email");
+    if(API.email){
+      btn.textContent="Sending…"; btn.disabled=true;
+      post("/api/email-report",{email:S.gate.email, subject:`${r.band.n}: your back office exposure check`,
+        headline:r.band.n, report_html:reportHTMLForEmail()})
+        .then(res=>{ btn.textContent=res&&res.ok?"Sent ✓":"Could not send, opening a draft"; btn.disabled=false;
+          if(!(res&&res.ok)) location.href=mailtoLink(); })
+        .catch(()=>{ btn.textContent="Could not send, opening a draft"; btn.disabled=false; location.href=mailtoLink(); });
+    } else { location.href=mailtoLink(); }
+  });
+  function mailtoLink(){
+    return `mailto:${encodeURIComponent(S.gate.email)}?subject=${encodeURIComponent("Your Auditoria Back Office Exposure Check")}&body=${encodeURIComponent(line)}`;
+  }
+  $("#ctaWa").addEventListener("click",()=>{
+    track("cta_whatsapp");
+    window.open("https://wa.me/?text="+encodeURIComponent("Auditoria Back Office Exposure Check: "+line),"_blank");
+  });
+  $("#ctaAgain").addEventListener("click",()=>{
+    S.lane=null;S.step=0;S.answers={};S.own={};S.gate={};
+    $("#report").innerHTML="";show("home");
+  });
+}
+
+/* =======================================================================
+   8. BOOT
+   ======================================================================= */
+buildOrbit(); bgCanvas(); detectBackend();
+$("#startBtn").addEventListener("click",()=>document.querySelector(".lanegrid").scrollIntoView({behavior:"smooth",block:"center"}));
+$("#howBtn").addEventListener("click",()=>$("#howSection").scrollIntoView({behavior:"smooth",block:"start"}));
+$$(".lane").forEach(b=>b.addEventListener("click",()=>startLane(b.dataset.lane)));
+</script>
+</body>
+</html>

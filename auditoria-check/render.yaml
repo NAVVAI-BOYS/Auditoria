@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: auditoria-check
+    runtime: python
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 60
+    healthCheckPath: /healthz
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      - key: ADMIN_KEY
+        generateValue: true
+      - key: DATA_DIR
+        value: /var/data
+      - key: BOOKING_URL
+        value: https://info.auditoria.ai/request-a-demo
+      # Email is optional. Leave these unset and the app stays honest about it:
+      # the report says sending is not wired up and the button falls back to a mail draft.
+      - key: RESEND_API_KEY
+        sync: false
+      - key: FROM_EMAIL
+        sync: false
+      - key: NOTIFY_EMAIL
+        sync: false
+    disk:
+      name: auditoria-check-data
+      mountPath: /var/data
+      sizeGB: 1
