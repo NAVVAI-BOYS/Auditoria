@@ -104,7 +104,6 @@ p{margin:0 0 14px}
 .topnav .inner{max-width:var(--maxw);margin:0 auto;padding:14px 24px;
   display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap}
 .navright{display:flex;align-items:center;gap:20px;flex-wrap:wrap}
-.navnote{font-size:13px;color:#6B7280;letter-spacing:.01em}
 .navpill{
   background:var(--cta-deep);color:#fff;border:0;border-radius:999px;padding:9px 20px;
   font-family:inherit;font-size:13.5px;font-weight:650;cursor:pointer;
@@ -495,7 +494,6 @@ textarea,input[type=text],input[type=email]{
   .steps,.walk{grid-template-columns:1fr}
   .node text{font-size:18px}
   .topnav .inner{padding:12px 18px}
-  .navnote{display:none}
 }
 @media (prefers-reduced-motion:reduce){
   *{animation:none !important;transition:none !important}
@@ -694,7 +692,6 @@ M12940 145 c0 -19 24 -30 41 -19 9 5 7 11 -6 21 -24 17 -35 17 -35 -2z"/></g>
         </svg>
       </div>
     <div class="navright">
-      <span class="navnote" id="ribbon">Preview · built for Auditoria.AI by Navvai</span>
       <button class="navpill" id="navStart">Start the check</button>
     </div>
   </div>
@@ -958,8 +955,7 @@ const MODULES = {
   aphelp:{n:"AP Helpdesk", d:"Answers supplier payment status requests, statements and disputes without a person in the loop."},
   smartcustomer:{n:"SmartCustomer", d:"Prioritises receivables, runs collections outreach, matches remittances and applies cash."},
   arhelp:{n:"AR Helpdesk", d:"Handles customer billing queries and invoice copy requests end to end."},
-  smartresearch:{n:"SmartResearch", d:"Answers questions about live financial data in plain language, across every entity, with no SQL and no analyst."},
-  guardian:{n:"Guardian", d:"Governs what the agents are allowed to do: your rules, your approval thresholds, an audit trail on every action."}
+  smartresearch:{n:"SmartResearch", d:"Answers questions about live financial data in plain language, across every entity, with no SQL and no analyst."}
 };
 
 const BANDS = [
@@ -1079,7 +1075,7 @@ const LANES = {
        q:"A supplier emails asking to change the bank account you pay them into. What happens next?",
        help:"This is the shortest path between a phishing email and a real payment, and it is the one most teams have never written down.",
        hurts:"A bank detail change with no independent verification does not fail loudly. It fails once, for a large amount, and the money is gone before the statement arrives.",
-       fix:{mod:"guardian", what:"applies your verification rule to every change request and logs each one against the policy that allowed it.", good:"Every bank detail change checked against a number you already hold, logged, and reviewable months later."},
+       fix:{mod:"smartvendor", what:"applies your verification rule to every change request under governed autonomy, and logs each one against the policy that allowed it.", good:"Every bank detail change checked against a number you already hold, logged, and reviewable months later."},
        opts:[
         {t:"It is verified by calling a number we already hold on file, and the change is logged", s:9},
         {t:"One person checks it, but there is no set process written down", s:5},
@@ -1099,7 +1095,7 @@ const LANES = {
        q:"How would you catch the same invoice being paid twice?",
        help:"Duplicates are rarely identical. They arrive twice in different formats, from different addresses, weeks apart.",
        hurts:"Duplicate and near duplicate payments are the definition of quiet waste: nobody complains, because the supplier has been paid. You only find them if you look, and looking is a job nobody owns.",
-       fix:{mod:"guardian", what:"checks every invoice against what has already been paid, including near matches, before the payment run.", good:"Duplicates stopped before payment, with the match shown, rather than recovered afterwards."},
+       fix:{mod:"smartvendor", what:"checks every invoice against what has already been paid, including near matches, before the payment run, inside the approval rules you set.", good:"Duplicates stopped before payment, with the match shown, rather than recovered afterwards."},
        opts:[
         {t:"Automatic duplicate and near duplicate checks before every payment run", s:9},
         {t:"The ERP flags exact matches only", s:6},
@@ -1157,7 +1153,7 @@ const LANES = {
         {t:"Five or more, plus spreadsheets", s:2.5}]}
     ],
     moves:{
-      controls:{n:"Put a written rule and a named owner on every change and exception", mod:"guardian", speed:8,
+      controls:{n:"Put a written rule and a named owner on every change and exception", mod:"smartvendor", speed:8,
         speedWhy:"a speed of 8 because it is a policy and a control switched on, not a rebuild",
         why:"Controls are the only area where being wrong once is expensive. A rule that can fail is what turns a good intention into a stop."},
       data:{n:"Digitise and code the invoices before a person ever sees them", mod:"smartvendor", speed:7,
@@ -1359,10 +1355,6 @@ function reportHTMLForEmail(){
 function detectBackend(){
   fetch("/api/config").then(r=>r.ok?r.json():Promise.reject()).then(c=>{
     API.live=!!c.live; API.email=!!c.email; if(c.booking) API.booking=c.booking;
-    const rib=$("#ribbon");
-    if(API.live) rib.textContent = API.email
-      ? "The Back Office Exposure Check · built for Auditoria.AI by Navvai"
-      : "The Back Office Exposure Check · built for Auditoria.AI by Navvai · email sending not yet configured";
     track("app_loaded");
   }).catch(()=>{});
 }
@@ -2276,7 +2268,7 @@ function renderReport(){
           : `<b>What each button does:</b> Download saves a real copy of this page. Email opens a draft, because the mail key is not configured on this deployment yet. WhatsApp opens a share. Your answers were logged when you unlocked this report.`)
         : `<b>Preview build:</b> Download saves a real copy of this page. Email opens a draft, because live sending is not wired up in a preview. WhatsApp opens a real share. Deployed, the report emails itself on unlock and posts the lead to Auditoria's pipeline.`}
       <br><br>
-      Auditoria.AI · SmartVendor, SmartCustomer, SmartResearch and Guardian are trademarks of Auditoria.AI Inc. Prepared ${new Date().toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"})} · Built for Auditoria.AI by Navvai.
+      Auditoria.AI · SmartVendor, SmartCustomer and SmartResearch are trademarks of Auditoria.AI Inc. Prepared ${new Date().toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"})} · Built for Auditoria.AI by Navvai.
     </div>
   </div>
   </div></div>`;
